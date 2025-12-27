@@ -20,15 +20,6 @@ extern void kernelvec();
 
 int devintr();
 
-// void
-// trapinit(void)
-// {
-//   initlock(&tickslock, "time");
-//   #ifdef DEBUG
-//   printf("trapinit\n");
-//   #endif
-// }
-
 // set up to take exceptions and traps while in the kernel.
 void
 trapinithart(void)
@@ -50,7 +41,6 @@ trapinithart(void)
 void
 usertrap(void)
 {
-  // printf("run in usertrap\n");
   int which_dev = 0;
 
   if((r_sstatus() & SSTATUS_SPP) != 0)
@@ -83,7 +73,6 @@ usertrap(void)
   else {
     printf("\nusertrap(): unexpected scause %p pid=%d %s\n", r_scause(), p->pid, p->name);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
-    // trapframedump(p->trapframe);
     p->killed = 1;
   }
 
@@ -133,7 +122,6 @@ usertrapret(void)
   w_sepc(p->trapframe->epc);
 
   // tell trampoline.S the user page table to switch to.
-  // printf("[usertrapret]p->pagetable: %p\n", p->pagetable);
   uint64 satp = MAKE_SATP(p->pagetable);
 
   // jump to trampoline.S at the top of memory, which 
@@ -166,65 +154,78 @@ kerneltrap() {
     }
     panic("kerneltrap");
   }
-  // printf("which_dev: %d\n", which_dev);
   
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING) {
     yield();
   }
-  // the yield() may have caused some traps to occur,
-  // so restore trap registers for use by kernelvec.S's sepc instruction.
+  
   w_sepc(sepc);
   w_sstatus(sstatus);
 }
 
 // Check if it's an external/software interrupt, 
 // and handle it. 
-// returns  2 if timer interrupt, 
-//          1 if other device, 
-//          0 if not recognized. 
 int devintr(void) {
-	uint64 scause = r_scause();
+    uint64 scause = r_scause();
 
-	#ifdef QEMU 
-	// handle external interrupt 
-	if ((0x8000000000000000L & scause) && 9 == (scause & 0xff)) 
-	#else 
-	// on k210, supervisor software interrupt is used 
-	// in alternative to supervisor external interrupt, 
-	// which is not available on k210. 
-	if (0x8000000000000001L == scause && 9 == r_stval()) 
-	#endif 
-	{
-		int irq = plic_claim();
-		if (UART_IRQ == irq) {
-			// keyboard input 
-			int c = sbi_console_getchar();
-			if (-1 != c) {
-				consoleintr(c);
-			}
-		}
-		else if (DISK_IRQ == irq) {
-			disk_intr();
-		}
-		else if (irq) {
-			printf("unexpected interrupt irq = %d\n", irq);
-		}
+    #ifdef QEMU 
+    // QEMU S-mode 外部中断判断
+    // 最高位为1 (Interrupt) 且 低位为9 (Supervisor External)
+    if ((0x8000000000000000L & scause) && 9 == (scause & 0xff)) 
+    #else 
+    // K210 M-mode 逻辑
+    if (0x8000000000000001L == scause && 9 == r_stval()) 
+    #endif 
+    {
+        int irq = plic_claim();
 
-		if (irq) { plic_complete(irq);}
+        #ifdef QEMU
+        if (irq == 10) { // UART IRQ = 10
+            // 【关键修改】循环读取，直到读不到字符为止
+            // 这样能确保清空 UART FIFO，防止中断死锁
+            while (1) {
+                int c = sbi_console_getchar();
+                if (c == -1) {
+                    break; // 读完了
+                }
+                consoleintr(c); // 把字符送给 shell
+            }
+        }
+        else if (irq == 1) { // DISK IRQ = 1
+            disk_intr();
+        }
+        #else
+        // K210 原有逻辑
+        if (UART_IRQ == irq) {
+            int c = sbi_console_getchar();
+            if (-1 != c) {
+                consoleintr(c);
+            }
+        }
+        else if (DISK_IRQ == irq) {
+            disk_intr();
+        }
+        #endif
+        else if (irq) {
+            // 忽略未知的IRQ，不要打印太多报错，以免刷屏
+            // printf("unexpected interrupt irq = %d\n", irq);
+        }
 
-		#ifndef QEMU 
-		w_sip(r_sip() & ~2);    // clear pending bit
-		sbi_set_mie();
-		#endif 
+        if (irq) { plic_complete(irq);}
 
-		return 1;
-	}
-	else if (0x8000000000000005L == scause) {
-		timer_tick();
-		return 2;
-	}
-	else { return 0;}
+        #ifndef QEMU 
+        w_sip(r_sip() & ~2);    // clear pending bit
+        sbi_set_mie();
+        #endif 
+
+        return 1;
+    }
+    else if (0x8000000000000005L == scause) {
+        timer_tick();
+        return 2;
+    }
+    else { return 0;}
 }
 
 void trapframedump(struct trapframe *tf)

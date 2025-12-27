@@ -1,5 +1,5 @@
-platform	:= k210
-#platform	:= qemu
+#platform	:= k210
+platform	:= qemu
 # mode := debug
 mode := release
 K=kernel
@@ -33,8 +33,8 @@ OBJS += \
   $K/pipe.o \
   $K/exec.o \
   $K/sysfile.o \
-  $K/kernelvec.o \
   $K/timer.o \
+  $K/kernelvec.o \
   $K/disk.o \
   $K/fat32.o \
   $K/plic.o \
@@ -129,12 +129,14 @@ ifndef CPUS
 CPUS := 2
 endif
 
-QEMUOPTS = -machine virt -kernel $T/kernel -m 8M -nographic
+# k210 8M ;give Qemu 128M
+QEMUOPTS = -machine virt -kernel $T/kernel -m 128M -nographic
 
 # use multi-core 
 QEMUOPTS += -smp $(CPUS)
 
-QEMUOPTS += -bios $(RUSTSBI)
+# 改回
+QEMUOPTS += -bios default
 
 # import virtual disk image
 QEMUOPTS += -drive file=fs.img,if=none,format=raw,id=x0 

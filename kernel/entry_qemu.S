@@ -1,6 +1,11 @@
     .section .text
     .globl _entry
 _entry:
+    # -------------------------------------
+    # 必须将a0存入tp
+    # xv6的C代码依赖tp寄存器来识别当前是哪个CPU
+    # -------------------------------------
+    mv tp, a0
     add t0, a0, 1
     slli t0, t0, 14
     la sp, boot_stack
