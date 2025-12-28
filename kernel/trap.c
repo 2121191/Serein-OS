@@ -12,6 +12,8 @@
 #include "include/console.h"
 #include "include/timer.h"
 #include "include/disk.h"
+#include "driver/driver.h"
+#include "include/vm.h"
 
 extern char trampoline[], uservec[], userret[];
 
@@ -69,7 +71,33 @@ usertrap(void)
   } 
   else if((which_dev = devintr()) != 0){
     // ok
-  } 
+  }
+  else if(r_scause() == 13 || r_scause() == 15) {
+    // Load Page Fault (13) 或 Store Page Fault (15)
+    // 可能是 CoW 或 Lazy Allocation 触发
+    uint64 va = r_stval();
+    int handled = 0;
+    
+    // 先尝试 CoW 处理 (仅 Store Page Fault)
+    if (r_scause() == 15) {
+      if (cow_handle(p->pagetable, p->kpagetable, va) == 0) {
+        handled = 1;
+      }
+    }
+    
+    // 再尝试 Lazy Allocation 处理
+    if (!handled) {
+      if (lazy_alloc(p->pagetable, p->kpagetable, va, p->sz) == 0) {
+        handled = 1;
+      }
+    }
+    
+    if (!handled) {
+      printf("\nusertrap(): page fault failed pid=%d va=%p scause=%d\n", 
+             p->pid, va, r_scause());
+      p->killed = 1;
+    }
+  }
   else {
     printf("\nusertrap(): unexpected scause %p pid=%d %s\n", r_scause(), p->pid, p->name);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
@@ -146,9 +174,39 @@ kerneltrap() {
     panic("kerneltrap: interrupts enabled");
 
   if((which_dev = devintr()) == 0){
+    // 非设备中断时的处理
+    struct proc *p = myproc();
+    
+    // 检查是否是 Load/Store Page Fault (scause=13/15)
+    // 可能是 CoW 或 Lazy Allocation 触发
+    if ((scause == 13 || scause == 15) && p != 0) {
+      uint64 va = r_stval();
+      int handled = 0;
+      
+      // 先尝试 CoW 处理（仅 Store Page Fault）
+      if (scause == 15) {
+        if (cow_handle(p->pagetable, p->kpagetable, va) == 0) {
+          handled = 1;
+        }
+      }
+      
+      // 再尝试 Lazy Allocation 处理
+      if (!handled) {
+        if (lazy_alloc(p->pagetable, p->kpagetable, va, p->sz) == 0) {
+          handled = 1;
+        }
+      }
+      
+      if (handled) {
+        w_sepc(sepc);
+        w_sstatus(sstatus);
+        return;
+      }
+    }
+    
+    // 处理失败或非页面错误异常，打印调试信息并 Panic
     printf("\nscause %p\n", scause);
     printf("sepc=%p stval=%p hart=%d\n", r_sepc(), r_stval(), r_tp());
-    struct proc *p = myproc();
     if (p != 0) {
       printf("pid: %d, name: %s\n", p->pid, p->name);
     }
@@ -178,41 +236,34 @@ int devintr(void) {
     if (0x8000000000000001L == scause && 9 == r_stval()) 
     #endif 
     {
-        int irq = plic_claim();
+        int irq = platform->plic->claim();
 
-        #ifdef QEMU
-        if (irq == 10) { // UART IRQ = 10
-            // 【关键修改】循环读取，直到读不到字符为止
-            // 这样能确保清空 UART FIFO，防止中断死锁
+        if (irq == platform->plic->uart_irq) {
+            // 使用驱动抽象层读取字符
+            // 循环读取，直到读不到字符为止，确保清空 UART FIFO
             while (1) {
-                int c = sbi_console_getchar();
+                int c = platform->console->getc();
                 if (c == -1) {
-                    break; // 读完了
+                    break;
                 }
-                consoleintr(c); // 把字符送给 shell
+                // 处理特殊字符 (如 \r -> \n)
+                c = platform->console->handle_char(c);
+                if (c > 0) {
+                    consoleintr(c);
+                }
             }
         }
-        else if (irq == 1) { // DISK IRQ = 1
-            disk_intr();
+        else if (irq == platform->plic->disk_irq) {
+            platform->disk->intr();
         }
-        #else
-        // K210 原有逻辑
-        if (UART_IRQ == irq) {
-            int c = sbi_console_getchar();
-            if (-1 != c) {
-                consoleintr(c);
-            }
-        }
-        else if (DISK_IRQ == irq) {
-            disk_intr();
-        }
-        #endif
         else if (irq) {
             // 忽略未知的IRQ，不要打印太多报错，以免刷屏
             // printf("unexpected interrupt irq = %d\n", irq);
         }
 
-        if (irq) { plic_complete(irq);}
+        if (irq) { 
+            platform->plic->complete(irq);
+        }
 
         #ifndef QEMU 
         w_sip(r_sip() & ~2);    // clear pending bit

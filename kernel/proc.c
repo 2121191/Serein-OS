@@ -312,21 +312,27 @@ userinit(void)
 
 // Grow or shrink user memory by n bytes.
 // Return 0 on success, -1 on failure.
+// Lazy Allocation: growing only updates sz, physical pages allocated on-demand.
 int
 growproc(int n)
 {
-  uint sz;
+  uint64 sz;
   struct proc *p = myproc();
 
   sz = p->sz;
   if(n > 0){
-    if((sz = uvmalloc(p->pagetable, p->kpagetable, sz, sz + n)) == 0) {
+    // Lazy Allocation: 仅增加逻辑大小，不分配物理页
+    // 物理页将在 Page Fault 时按需分配
+    uint64 newsz = sz + n;
+    // 检查是否超出最大用户虚拟地址
+    if (newsz >= MAXVA)
       return -1;
-    }
+    p->sz = newsz;
   } else if(n < 0){
+    // 缩小时仍需释放物理页
     sz = uvmdealloc(p->pagetable, p->kpagetable, sz, sz + n);
+    p->sz = sz;
   }
-  p->sz = sz;
   return 0;
 }
 

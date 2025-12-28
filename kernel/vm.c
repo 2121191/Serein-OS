@@ -231,10 +231,11 @@ vmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
     panic("vmunmap: not aligned");
 
   for(a = va; a < va + npages*PGSIZE; a += PGSIZE){
+    // Lazy Allocation 兼容：跳过未映射的页面
     if((pte = walk(pagetable, a, 0)) == 0)
-      panic("vmunmap: walk");
+      continue;  // 页表项不存在，跳过
     if((*pte & PTE_V) == 0)
-      panic("vmunmap: not mapped");
+      continue;  // 页面未分配（懒加载空洞），跳过
     if(PTE_FLAGS(*pte) == PTE_V)
       panic("vmunmap: not a leaf");
     if(do_free){
@@ -364,43 +365,66 @@ uvmfree(pagetable_t pagetable, uint64 sz)
 
 // Given a parent process's page table, copy
 // its memory into a child's page table.
-// Copies both the page table and the
-// physical memory.
+// CoW version: shares physical pages and sets them read-only.
 // returns 0 on success, -1 on failure.
-// frees any allocated pages on failure.
 int
 uvmcopy(pagetable_t old, pagetable_t new, pagetable_t knew, uint64 sz)
 {
   pte_t *pte;
   uint64 pa, i = 0, ki = 0;
   uint flags;
-  char *mem;
 
   while (i < sz){
-    if((pte = walk(old, i, 0)) == NULL)
-      panic("uvmcopy: pte should exist");
-    if((*pte & PTE_V) == 0)
-      panic("uvmcopy: page not present");
+    // Lazy Allocation 兼容：跳过未映射的页面
+    if((pte = walk(old, i, 0)) == NULL) {
+      i += PGSIZE;
+      ki += PGSIZE;
+      continue;  // 页表项不存在，跳过
+    }
+    if((*pte & PTE_V) == 0) {
+      i += PGSIZE;
+      ki += PGSIZE;
+      continue;  // 页面未分配（懒加载空洞），跳过
+    }
+    
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == NULL)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0) {
-      kfree(mem);
+    
+    // CoW: 如果页面可写，清除写权限并设置 CoW 标记
+    if (flags & PTE_W) {
+      flags = (flags & ~PTE_W) | PTE_COW;
+      // 更新父进程页表: 设为只读 + CoW
+      *pte = PA2PTE(pa) | flags;
+    }
+    
+    // 子进程映射到相同物理页 (只读 + CoW)
+    if(mappages(new, i, PGSIZE, pa, flags) != 0) {
       goto err;
     }
+    
+    // 子进程内核页表也映射到相同物理页
+    if(mappages(knew, ki, PGSIZE, pa, flags & ~PTE_U) != 0){
+      goto err;
+    }
+    
+    // 增加物理页引用计数
+    krefget((void*)pa);
+    
     i += PGSIZE;
-    if(mappages(knew, ki, PGSIZE, (uint64)mem, flags & ~PTE_U) != 0){
-      goto err;
-    }
     ki += PGSIZE;
   }
   return 0;
 
  err:
+  // 错误处理：减少已增加的引用计数并解除映射
+  for (uint64 j = 0; j < i; j += PGSIZE) {
+    pte_t *p = walk(new, j, 0);
+    if (p && (*p & PTE_V)) {
+      krefput((void*)PTE2PA(*p));
+    }
+  }
   vmunmap(knew, 0, ki / PGSIZE, 0);
-  vmunmap(new, 0, i / PGSIZE, 1);
+  vmunmap(new, 0, i / PGSIZE, 0);  // 不释放物理页，仅解除映射
   return -1;
 }
 
@@ -647,4 +671,99 @@ void vmprint(pagetable_t pagetable)
     }
   }
   return;
+}
+
+// Handle Copy-on-Write page fault
+// Returns 0 on success, -1 on failure
+int
+cow_handle(pagetable_t pagetable, pagetable_t kpagetable, uint64 va)
+{
+  if (va >= MAXVA)
+    return -1;
+  
+  va = PGROUNDDOWN(va);
+  pte_t *pte = walk(pagetable, va, 0);
+  
+  if (pte == 0 || (*pte & PTE_V) == 0)
+    return -1;  // 页面无效
+  if ((*pte & PTE_COW) == 0)
+    return -1;  // 非 CoW 页面
+  
+  uint64 pa = PTE2PA(*pte);
+  uint flags = PTE_FLAGS(*pte);
+  
+  if (krefcnt((void*)pa) == 1) {
+    // 仅剩一个引用，直接恢复写权限
+    *pte = (*pte | PTE_W) & ~PTE_COW;
+    // 同步更新内核页表
+    pte_t *kpte = walk(kpagetable, va, 0);
+    if (kpte && (*kpte & PTE_V)) {
+      *kpte = (*kpte | PTE_W) & ~PTE_COW;
+    }
+    return 0;
+  }
+  
+  // 多个引用，分配新页并复制
+  char *mem = kalloc();
+  if (mem == 0)
+    return -1;
+  
+  memmove(mem, (char*)pa, PGSIZE);
+  
+  // 更新用户页表: 映射到新页，恢复写权限，清除 CoW 标记
+  flags = (flags | PTE_W) & ~PTE_COW;
+  *pte = PA2PTE(mem) | flags;
+  
+  // 更新内核页表
+  pte_t *kpte = walk(kpagetable, va, 0);
+  if (kpte && (*kpte & PTE_V)) {
+    *kpte = PA2PTE(mem) | (flags & ~PTE_U);
+  }
+  
+  // 减少原页引用计数 (使用 krefput，归零时会释放)
+  krefput((void*)pa);
+  
+  return 0;
+}
+
+// Handle Lazy Allocation page fault
+// Allocates a physical page for a lazily allocated virtual address
+// Returns 0 on success, -1 on failure
+int
+lazy_alloc(pagetable_t pagetable, pagetable_t kpagetable, uint64 va, uint64 sz)
+{
+  va = PGROUNDDOWN(va);
+  
+  // 检查是否在合法范围内
+  if (va >= sz)
+    return -1;  // 超出进程地址空间
+  if (va < PGSIZE)
+    return -1;  // 地址 0 附近保留给 NULL 指针检测
+  
+  // 检查是否已映射
+  pte_t *pte = walk(pagetable, va, 0);
+  if (pte && (*pte & PTE_V))
+    return -1;  // 已存在映射，不是 lazy 页面
+  
+  // 分配物理页
+  char *mem = kalloc();
+  if (mem == 0)
+    return -1;
+  memset(mem, 0, PGSIZE);
+  
+  // 映射到用户页表
+  if (mappages(pagetable, va, PGSIZE, 
+               (uint64)mem, PTE_W|PTE_R|PTE_X|PTE_U) != 0) {
+    kfree(mem);
+    return -1;
+  }
+  
+  // 映射到进程内核页表
+  if (mappages(kpagetable, va, PGSIZE, 
+               (uint64)mem, PTE_W|PTE_R|PTE_X) != 0) {
+    vmunmap(pagetable, va, 1, 1);
+    return -1;
+  }
+  
+  return 0;
 }
