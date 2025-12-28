@@ -13,6 +13,7 @@
 #include "include/timer.h"
 #include "include/disk.h"
 #include "driver/driver.h"
+#include "include/vm.h"
 
 extern char trampoline[], uservec[], userret[];
 
@@ -70,7 +71,15 @@ usertrap(void)
   } 
   else if((which_dev = devintr()) != 0){
     // ok
-  } 
+  }
+  else if(r_scause() == 15) {
+    // Store Page Fault - 可能是 CoW 触发
+    uint64 va = r_stval();
+    if (cow_handle(p->pagetable, p->kpagetable, va) < 0) {
+      printf("\nusertrap(): CoW failed pid=%d va=%p\n", p->pid, va);
+      p->killed = 1;
+    }
+  }
   else {
     printf("\nusertrap(): unexpected scause %p pid=%d %s\n", r_scause(), p->pid, p->name);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
@@ -147,9 +156,24 @@ kerneltrap() {
     panic("kerneltrap: interrupts enabled");
 
   if((which_dev = devintr()) == 0){
+    // 非设备中断时的处理
+    struct proc *p = myproc();
+    
+    // 检查是否是 Store Page Fault (scause=15)，可能是 CoW 触发
+    if (scause == 15 && p != 0) {
+      uint64 va = r_stval();
+      // 尝试 CoW 处理（内核写用户 CoW 页面时会触发）
+      if (cow_handle(p->pagetable, p->kpagetable, va) == 0) {
+        // CoW 处理成功，恢复执行
+        w_sepc(sepc);
+        w_sstatus(sstatus);
+        return;
+      }
+    }
+    
+    // CoW 处理失败或非 CoW 异常，打印调试信息并 Panic
     printf("\nscause %p\n", scause);
     printf("sepc=%p stval=%p hart=%d\n", r_sepc(), r_stval(), r_tp());
-    struct proc *p = myproc();
     if (p != 0) {
       printf("pid: %d, name: %s\n", p->pid, p->name);
     }

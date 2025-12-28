@@ -16,6 +16,15 @@ void freerange(void *pa_start, void *pa_end);
 
 extern char kernel_end[]; // first address after kernel.
 
+// 物理页数量: (PHYSTOP - KERNBASE) / PGSIZE
+#define NPHYPAGE ((PHYSTOP - KERNBASE) / PGSIZE)
+
+// 物理地址转索引
+#define PA2IDX(pa) (((uint64)(pa) - KERNBASE) / PGSIZE)
+
+// 前置条件检查
+#define PA_VALID(pa) ((uint64)(pa) >= KERNBASE && (uint64)(pa) < PHYSTOP && ((uint64)(pa) % PGSIZE) == 0)
+
 struct run {
   struct run *next;
 };
@@ -24,6 +33,7 @@ struct {
   struct spinlock lock;
   struct run *freelist;
   uint64 npage;
+  uint8 refcnt[NPHYPAGE];  // 每页引用计数 (0-255)
 } kmem;
 
 void
@@ -32,9 +42,11 @@ kinit()
   initlock(&kmem.lock, "kmem");
   kmem.freelist = 0;
   kmem.npage = 0;
+  // 初始化所有引用计数为 0
+  memset(kmem.refcnt, 0, sizeof(kmem.refcnt));
   freerange(kernel_end, (void*)PHYSTOP);
   #ifdef DEBUG
-  printf("kernel_end: %p, phystop: %p\n", kernel_end, (void*)PHYSTOP);
+  printf("kernel_end: %p, phystop: %p, nphypage: %d\n", kernel_end, (void*)PHYSTOP, NPHYPAGE);
   printf("kinit\n");
   #endif
 }
@@ -59,6 +71,22 @@ kfree(void *pa)
   
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < kernel_end || (uint64)pa >= PHYSTOP)
     panic("kfree");
+
+  acquire(&kmem.lock);
+  
+  // CoW: 仅当引用计数为 0 或 1 时才真正释放
+  int idx = PA2IDX(pa);
+  if (kmem.refcnt[idx] > 1) {
+    // 还有其他引用，仅减少计数
+    kmem.refcnt[idx]--;
+    release(&kmem.lock);
+    return;
+  }
+  
+  // 引用计数为 0 或 1，可以释放
+  kmem.refcnt[idx] = 0;
+  
+  release(&kmem.lock);
 
   // Fill with junk to catch dangling refs.
   memset(pa, 1, PGSIZE);
@@ -85,6 +113,8 @@ kalloc(void)
   if(r) {
     kmem.freelist = r->next;
     kmem.npage--;
+    // 新分配页引用计数为 1
+    kmem.refcnt[PA2IDX(r)] = 1;
   }
   release(&kmem.lock);
 
@@ -97,4 +127,40 @@ uint64
 freemem_amount(void)
 {
   return kmem.npage << PGSHIFT;
+}
+
+// ============== 引用计数 API ==============
+
+// 增加引用计数 (用于 CoW 共享页面)
+void
+krefget(void *pa)
+{
+  if (!PA_VALID(pa))
+    panic("krefget: invalid pa");
+  
+  acquire(&kmem.lock);
+  kmem.refcnt[PA2IDX(pa)]++;
+  release(&kmem.lock);
+}
+
+// 减少引用计数，归零时调用 kfree 释放
+void
+krefput(void *pa)
+{
+  if (!PA_VALID(pa))
+    panic("krefput: invalid pa");
+  
+  // kfree 已经实现了引用计数减少逻辑
+  kfree(pa);
+}
+
+// 查询引用计数
+int
+krefcnt(void *pa)
+{
+  if (!PA_VALID(pa))
+    return 0;
+  
+  // 读操作，不需要加锁（可接受短暂不一致）
+  return kmem.refcnt[PA2IDX(pa)];
 }
