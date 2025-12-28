@@ -28,5 +28,10 @@
 #define SYS_readdir     24
 #define SYS_getcwd      25
 #define SYS_rename      26
+#define SYS_sem_open    27
+#define SYS_sem_wait    28
+#define SYS_sem_post    29
+#define SYS_sem_close   30
+#define SYS_sem_getvalue 31
 
 #endif

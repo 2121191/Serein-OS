@@ -33,6 +33,11 @@ int remove(char *filename);
 int trace(int mask);
 int sysinfo(struct sysinfo *);
 int rename(char *old, char *new);
+int sem_open(int initial_value);
+int sem_wait(int sem_id);
+int sem_post(int sem_id);
+int sem_close(int sem_id);
+int sem_getvalue(int sem_id, int *value);
 
 // ulib.c
 int stat(const char*, struct stat*);

@@ -13,6 +13,7 @@
 #include "include/vm.h"
 #include "include/disk.h"
 #include "include/buf.h"
+#include "include/sem.h"
 #include "driver/driver.h"
 
 #ifndef QEMU
@@ -83,6 +84,11 @@ main(unsigned long hartid, unsigned long dtb_pa)
     timerinit();     
     trapinithart();  
     procinit();
+    seminit();        // Initialize semaphore subsystem
+    
+    #ifdef DEBUG
+    test_sem();       // Test semaphore implementation
+    #endif
     
     // 步骤 5: 使用驱动抽象层初始化 PLIC
     platform->plic->init();

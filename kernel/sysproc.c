@@ -10,6 +10,8 @@
 #include "include/kalloc.h"
 #include "include/string.h"
 #include "include/printf.h"
+#include "include/sem.h"
+#include "include/vm.h"
 
 extern int exec(char *path, char **argv);
 
@@ -152,5 +154,106 @@ sys_trace(void)
     return -1;
   }
   myproc()->tmask = mask;
+  return 0;
+}
+
+// Semaphore system calls
+
+uint64
+sys_sem_open(void)
+{
+  int initial_value;
+  
+  if(argint(0, &initial_value) < 0) {
+    return -1;
+  }
+  
+  // Allocate semaphore and return its index
+  return semalloc(initial_value);
+}
+
+uint64
+sys_sem_wait(void)
+{
+  int sem_id;
+  struct sem *sem;
+  
+  if(argint(0, &sem_id) < 0) {
+    return -1;
+  }
+  
+  sem = semget(sem_id);
+  if(sem == 0) {
+    return -1;  // Invalid semaphore ID
+  }
+  
+  semwait(sem);
+  return 0;
+}
+
+uint64
+sys_sem_post(void)
+{
+  int sem_id;
+  struct sem *sem;
+  
+  if(argint(0, &sem_id) < 0) {
+    return -1;
+  }
+  
+  sem = semget(sem_id);
+  if(sem == 0) {
+    return -1;  // Invalid semaphore ID
+  }
+  
+  sempost(sem);
+  return 0;
+}
+
+uint64
+sys_sem_close(void)
+{
+  int sem_id;
+  struct sem *sem;
+  
+  if(argint(0, &sem_id) < 0) {
+    return -1;
+  }
+  
+  sem = semget(sem_id);
+  if(sem == 0) {
+    return -1;  // Invalid semaphore ID
+  }
+  
+  semfree(sem);
+  return 0;
+}
+
+uint64
+sys_sem_getvalue(void)
+{
+  int sem_id;
+  uint64 value_addr;
+  int value;
+  struct sem *sem;
+  
+  if(argint(0, &sem_id) < 0 || argaddr(1, &value_addr) < 0) {
+    return -1;
+  }
+  
+  sem = semget(sem_id);
+  if(sem == 0) {
+    return -1;  // Invalid semaphore ID
+  }
+  
+  if(semgetvalue(sem, &value) < 0) {
+    return -1;
+  }
+  
+  // Copy value to user space
+  if(copyout2(value_addr, (char *)&value, sizeof(value)) < 0) {
+    return -1;
+  }
+  
   return 0;
 }

@@ -41,3 +41,8 @@ entry("remove");
 entry("trace");
 entry("sysinfo");
 entry("rename");
+entry("sem_open");
+entry("sem_wait");
+entry("sem_post");
+entry("sem_close");
+entry("sem_getvalue");

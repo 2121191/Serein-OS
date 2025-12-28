@@ -29,6 +29,7 @@ OBJS += \
   $K/sysproc.o \
   $K/bio.o \
   $K/sleeplock.o \
+  $K/sem.o \
   $K/file.o \
   $K/pipe.o \
   $K/exec.o \
@@ -210,6 +211,8 @@ UPROGS=\
 	$U/_myprog\
 	$U/_cp\
 	$U/_stat\
+	$U/_semtest\
+	$U/_semtest2\
 
 
 	# xiugai12281612
