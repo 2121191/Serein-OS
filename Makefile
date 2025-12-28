@@ -206,8 +206,14 @@ UPROGS=\
 	$U/_usertests\
 	$U/_strace\
 	$U/_mv\
+	$U/_myprog\
+	$U/_cp\
+	$U/_stat\
 
+
+	# xiugai12281612
 	# $U/_forktest\
+
 	# $U/_ln\
 	# $U/_stressfs\
 	# $U/_grind\
