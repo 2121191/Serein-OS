@@ -12,6 +12,7 @@
 #include "include/console.h"
 #include "include/timer.h"
 #include "include/disk.h"
+#include "driver/driver.h"
 
 extern char trampoline[], uservec[], userret[];
 
@@ -178,41 +179,34 @@ int devintr(void) {
     if (0x8000000000000001L == scause && 9 == r_stval()) 
     #endif 
     {
-        int irq = plic_claim();
+        int irq = platform->plic->claim();
 
-        #ifdef QEMU
-        if (irq == 10) { // UART IRQ = 10
-            // 【关键修改】循环读取，直到读不到字符为止
-            // 这样能确保清空 UART FIFO，防止中断死锁
+        if (irq == platform->plic->uart_irq) {
+            // 使用驱动抽象层读取字符
+            // 循环读取，直到读不到字符为止，确保清空 UART FIFO
             while (1) {
-                int c = sbi_console_getchar();
+                int c = platform->console->getc();
                 if (c == -1) {
-                    break; // 读完了
+                    break;
                 }
-                consoleintr(c); // 把字符送给 shell
+                // 处理特殊字符 (如 \r -> \n)
+                c = platform->console->handle_char(c);
+                if (c > 0) {
+                    consoleintr(c);
+                }
             }
         }
-        else if (irq == 1) { // DISK IRQ = 1
-            disk_intr();
+        else if (irq == platform->plic->disk_irq) {
+            platform->disk->intr();
         }
-        #else
-        // K210 原有逻辑
-        if (UART_IRQ == irq) {
-            int c = sbi_console_getchar();
-            if (-1 != c) {
-                consoleintr(c);
-            }
-        }
-        else if (DISK_IRQ == irq) {
-            disk_intr();
-        }
-        #endif
         else if (irq) {
             // 忽略未知的IRQ，不要打印太多报错，以免刷屏
             // printf("unexpected interrupt irq = %d\n", irq);
         }
 
-        if (irq) { plic_complete(irq);}
+        if (irq) { 
+            platform->plic->complete(irq);
+        }
 
         #ifndef QEMU 
         w_sip(r_sip() & ~2);    // clear pending bit

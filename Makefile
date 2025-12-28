@@ -53,6 +53,7 @@ OBJS += \
 else
 OBJS += \
   $K/virtio_disk.o \
+  $K/driver/platform_qemu.o \
   #$K/uart.o \
 
 endif
