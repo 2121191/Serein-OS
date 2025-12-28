@@ -72,11 +72,29 @@ usertrap(void)
   else if((which_dev = devintr()) != 0){
     // ok
   }
-  else if(r_scause() == 15) {
-    // Store Page Fault - 可能是 CoW 触发
+  else if(r_scause() == 13 || r_scause() == 15) {
+    // Load Page Fault (13) 或 Store Page Fault (15)
+    // 可能是 CoW 或 Lazy Allocation 触发
     uint64 va = r_stval();
-    if (cow_handle(p->pagetable, p->kpagetable, va) < 0) {
-      printf("\nusertrap(): CoW failed pid=%d va=%p\n", p->pid, va);
+    int handled = 0;
+    
+    // 先尝试 CoW 处理 (仅 Store Page Fault)
+    if (r_scause() == 15) {
+      if (cow_handle(p->pagetable, p->kpagetable, va) == 0) {
+        handled = 1;
+      }
+    }
+    
+    // 再尝试 Lazy Allocation 处理
+    if (!handled) {
+      if (lazy_alloc(p->pagetable, p->kpagetable, va, p->sz) == 0) {
+        handled = 1;
+      }
+    }
+    
+    if (!handled) {
+      printf("\nusertrap(): page fault failed pid=%d va=%p scause=%d\n", 
+             p->pid, va, r_scause());
       p->killed = 1;
     }
   }
@@ -159,19 +177,34 @@ kerneltrap() {
     // 非设备中断时的处理
     struct proc *p = myproc();
     
-    // 检查是否是 Store Page Fault (scause=15)，可能是 CoW 触发
-    if (scause == 15 && p != 0) {
+    // 检查是否是 Load/Store Page Fault (scause=13/15)
+    // 可能是 CoW 或 Lazy Allocation 触发
+    if ((scause == 13 || scause == 15) && p != 0) {
       uint64 va = r_stval();
-      // 尝试 CoW 处理（内核写用户 CoW 页面时会触发）
-      if (cow_handle(p->pagetable, p->kpagetable, va) == 0) {
-        // CoW 处理成功，恢复执行
+      int handled = 0;
+      
+      // 先尝试 CoW 处理（仅 Store Page Fault）
+      if (scause == 15) {
+        if (cow_handle(p->pagetable, p->kpagetable, va) == 0) {
+          handled = 1;
+        }
+      }
+      
+      // 再尝试 Lazy Allocation 处理
+      if (!handled) {
+        if (lazy_alloc(p->pagetable, p->kpagetable, va, p->sz) == 0) {
+          handled = 1;
+        }
+      }
+      
+      if (handled) {
         w_sepc(sepc);
         w_sstatus(sstatus);
         return;
       }
     }
     
-    // CoW 处理失败或非 CoW 异常，打印调试信息并 Panic
+    // 处理失败或非页面错误异常，打印调试信息并 Panic
     printf("\nscause %p\n", scause);
     printf("sepc=%p stval=%p hart=%d\n", r_sepc(), r_stval(), r_tp());
     if (p != 0) {

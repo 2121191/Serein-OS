@@ -231,10 +231,11 @@ vmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
     panic("vmunmap: not aligned");
 
   for(a = va; a < va + npages*PGSIZE; a += PGSIZE){
+    // Lazy Allocation 兼容：跳过未映射的页面
     if((pte = walk(pagetable, a, 0)) == 0)
-      panic("vmunmap: walk");
+      continue;  // 页表项不存在，跳过
     if((*pte & PTE_V) == 0)
-      panic("vmunmap: not mapped");
+      continue;  // 页面未分配（懒加载空洞），跳过
     if(PTE_FLAGS(*pte) == PTE_V)
       panic("vmunmap: not a leaf");
     if(do_free){
@@ -374,10 +375,17 @@ uvmcopy(pagetable_t old, pagetable_t new, pagetable_t knew, uint64 sz)
   uint flags;
 
   while (i < sz){
-    if((pte = walk(old, i, 0)) == NULL)
-      panic("uvmcopy: pte should exist");
-    if((*pte & PTE_V) == 0)
-      panic("uvmcopy: page not present");
+    // Lazy Allocation 兼容：跳过未映射的页面
+    if((pte = walk(old, i, 0)) == NULL) {
+      i += PGSIZE;
+      ki += PGSIZE;
+      continue;  // 页表项不存在，跳过
+    }
+    if((*pte & PTE_V) == 0) {
+      i += PGSIZE;
+      ki += PGSIZE;
+      continue;  // 页面未分配（懒加载空洞），跳过
+    }
     
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
@@ -714,6 +722,48 @@ cow_handle(pagetable_t pagetable, pagetable_t kpagetable, uint64 va)
   
   // 减少原页引用计数 (使用 krefput，归零时会释放)
   krefput((void*)pa);
+  
+  return 0;
+}
+
+// Handle Lazy Allocation page fault
+// Allocates a physical page for a lazily allocated virtual address
+// Returns 0 on success, -1 on failure
+int
+lazy_alloc(pagetable_t pagetable, pagetable_t kpagetable, uint64 va, uint64 sz)
+{
+  va = PGROUNDDOWN(va);
+  
+  // 检查是否在合法范围内
+  if (va >= sz)
+    return -1;  // 超出进程地址空间
+  if (va < PGSIZE)
+    return -1;  // 地址 0 附近保留给 NULL 指针检测
+  
+  // 检查是否已映射
+  pte_t *pte = walk(pagetable, va, 0);
+  if (pte && (*pte & PTE_V))
+    return -1;  // 已存在映射，不是 lazy 页面
+  
+  // 分配物理页
+  char *mem = kalloc();
+  if (mem == 0)
+    return -1;
+  memset(mem, 0, PGSIZE);
+  
+  // 映射到用户页表
+  if (mappages(pagetable, va, PGSIZE, 
+               (uint64)mem, PTE_W|PTE_R|PTE_X|PTE_U) != 0) {
+    kfree(mem);
+    return -1;
+  }
+  
+  // 映射到进程内核页表
+  if (mappages(kpagetable, va, PGSIZE, 
+               (uint64)mem, PTE_W|PTE_R|PTE_X) != 0) {
+    vmunmap(pagetable, va, 1, 1);
+    return -1;
+  }
   
   return 0;
 }
