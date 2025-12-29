@@ -165,8 +165,10 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
-  // 彩票调度：初始化彩票数
+  // 彩票调度：初始化彩票数和统计信息
   p->tickets = DEFAULT_TICKETS;
+  p->runticks = 0;
+  p->schedcount = 0;
 
   return p;
 }
@@ -536,6 +538,58 @@ wait(uint64 addr)
   }
 }
 
+// Wait for a specific child process to exit.
+// pid > 0: wait for the child with this pid
+// pid == -1: wait for any child (same as wait())
+// Returns child pid on success, -1 on error.
+int
+waitpid(int target_pid, uint64 addr, int options)
+{
+  struct proc *np;
+  int havekids, pid;
+  struct proc *p = myproc();
+
+  acquire(&p->lock);
+
+  for(;;){
+    havekids = 0;
+    for(np = proc; np < &proc[NPROC]; np++){
+      if(np->parent == p){
+        acquire(&np->lock);
+        
+        // 如果 target_pid > 0，只匹配特定 pid
+        if(target_pid > 0 && np->pid != target_pid) {
+          release(&np->lock);
+          continue;
+        }
+        
+        havekids = 1;
+        if(np->state == ZOMBIE){
+          pid = np->pid;
+          if(addr != 0 && copyout2(addr, (char *)&np->xstate, sizeof(np->xstate)) < 0) {
+            release(&np->lock);
+            release(&p->lock);
+            return -1;
+          }
+          freeproc(np);
+          release(&np->lock);
+          release(&p->lock);
+          return pid;
+        }
+        release(&np->lock);
+      }
+    }
+
+    // 没有匹配的子进程
+    if(!havekids || p->killed){
+      release(&p->lock);
+      return -1;
+    }
+    
+    sleep(p, &p->lock);
+  }
+}
+
 // Per-CPU process scheduler.
 // Lottery Scheduling: 每次调度随机抽取中奖进程，概率与彩票数成正比
 void
@@ -577,6 +631,7 @@ scheduler(void)
         if(current > winning_ticket) {
           // 该进程中奖，运行它
           p->state = RUNNING;
+          p->schedcount++;  // 记录被调度次数
           c->proc = p;
           w_satp(MAKE_SATP(p->kpagetable));
           sfence_vma();
@@ -626,6 +681,7 @@ yield(void)
 {
   struct proc *p = myproc();
   acquire(&p->lock);
+  p->runticks++;  // 记录运行 ticks
   p->state = RUNNABLE;
   sched();
   release(&p->lock);

@@ -5,6 +5,7 @@
 struct stat;
 struct rtcdate;
 struct sysinfo;
+struct pstat;
 
 // system calls
 int fork(void);
@@ -33,6 +34,9 @@ int remove(char *filename);
 int trace(int mask);
 int sysinfo(struct sysinfo *);
 int rename(char *old, char *new);
+int settickets(int n);
+int getpinfo(struct pstat *);
+int waitpid(int pid, int *status, int options);
 
 // ulib.c
 int stat(const char*, struct stat*);

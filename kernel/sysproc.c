@@ -10,6 +10,7 @@
 #include "include/kalloc.h"
 #include "include/string.h"
 #include "include/printf.h"
+#include "include/vm.h"
 
 extern int exec(char *path, char **argv);
 
@@ -153,4 +154,75 @@ sys_trace(void)
   }
   myproc()->tmask = mask;
   return 0;
+}
+
+// 设置当前进程的彩票数
+uint64
+sys_settickets(void)
+{
+  int n;
+  if(argint(0, &n) < 0)
+    return -1;
+  
+  // 边界检查：彩票数必须在 1-100 之间
+  if(n < 1 || n > 100)
+    return -1;
+  
+  myproc()->tickets = n;
+  return 0;
+}
+
+// 获取所有进程的统计信息
+extern struct proc proc[];
+
+uint64
+sys_getpinfo(void)
+{
+  uint64 addr;
+  struct pstat ps;
+  struct proc *p;
+  int i;
+  
+  if(argaddr(0, &addr) < 0)
+    return -1;
+  
+  // 清零
+  memset(&ps, 0, sizeof(ps));
+  
+  // 填充进程信息
+  for(i = 0, p = proc; p < &proc[NPROC]; p++, i++) {
+    acquire(&p->lock);
+    if(p->state != UNUSED) {
+      ps.inuse[i] = 1;
+      ps.pid[i] = p->pid;
+      ps.tickets[i] = p->tickets;
+      ps.runticks[i] = p->runticks;
+      memmove(ps.name[i], p->name, 16);
+    }
+    release(&p->lock);
+  }
+  
+  // 复制到用户空间
+  if(copyout2(addr, (char *)&ps, sizeof(ps)) < 0)
+    return -1;
+  
+  return 0;
+}
+
+// 等待指定子进程
+uint64
+sys_waitpid(void)
+{
+  int pid;
+  uint64 addr;
+  int options;
+  
+  if(argint(0, &pid) < 0)
+    return -1;
+  if(argaddr(1, &addr) < 0)
+    return -1;
+  if(argint(2, &options) < 0)
+    return -1;
+  
+  return waitpid(pid, addr, options);
 }

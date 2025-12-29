@@ -210,6 +210,7 @@ UPROGS=\
 	$U/_myprog\
 	$U/_cp\
 	$U/_stat\
+	$U/_ps\
 
 
 	# xiugai12281612

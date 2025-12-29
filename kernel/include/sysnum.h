@@ -28,5 +28,8 @@
 #define SYS_readdir     24
 #define SYS_getcwd      25
 #define SYS_rename      26
+#define SYS_settickets  27
+#define SYS_getpinfo    28
+#define SYS_waitpid     29
 
 #endif

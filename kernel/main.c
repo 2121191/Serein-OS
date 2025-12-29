@@ -13,6 +13,7 @@
 #include "include/vm.h"
 #include "include/disk.h"
 #include "include/buf.h"
+#include "include/sched.h"
 #include "driver/driver.h"
 
 #ifndef QEMU
@@ -83,6 +84,9 @@ main(unsigned long hartid, unsigned long dtb_pa)
     timerinit();     
     trapinithart();  
     procinit();
+    
+    // 彩票调度：使用硬件时间戳初始化 PRNG 种子
+    lcg_srand((unsigned int)r_time());
     
     // 步骤 5: 使用驱动抽象层初始化 PLIC
     platform->plic->init();

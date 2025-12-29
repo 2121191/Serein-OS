@@ -41,3 +41,6 @@ entry("remove");
 entry("trace");
 entry("sysinfo");
 entry("rename");
+entry("settickets");
+entry("getpinfo");
+entry("waitpid");

@@ -65,6 +65,17 @@ struct proc {
   char name[16];               // Process name (debugging)
   int tmask;                    // trace mask
   int tickets;                  // 彩票调度：持有的彩票数量
+  uint64 runticks;              // 累计运行 ticks
+  uint64 schedcount;            // 被调度次数
+};
+
+// 进程统计信息（用于 getpinfo 系统调用）
+struct pstat {
+  int inuse[NPROC];             // 进程槽是否使用
+  int pid[NPROC];               // PID
+  int tickets[NPROC];           // 彩票数
+  uint64 runticks[NPROC];       // 运行时间
+  char name[NPROC][16];         // 进程名
 };
 
 void            reg_info(void);
@@ -85,6 +96,7 @@ void            setproc(struct proc*);
 void            sleep(void*, struct spinlock*);
 void            userinit(void);
 int             wait(uint64);
+int             waitpid(int, uint64, int);
 void            wakeup(void*);
 void            yield(void);
 int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);

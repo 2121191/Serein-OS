@@ -116,6 +116,9 @@ extern uint64 sys_remove(void);
 extern uint64 sys_trace(void);
 extern uint64 sys_sysinfo(void);
 extern uint64 sys_rename(void);
+extern uint64 sys_settickets(void);
+extern uint64 sys_getpinfo(void);
+extern uint64 sys_waitpid(void);
 
 static uint64 (*syscalls[])(void) = {
   [SYS_fork]        sys_fork,
@@ -144,6 +147,9 @@ static uint64 (*syscalls[])(void) = {
   [SYS_trace]       sys_trace,
   [SYS_sysinfo]     sys_sysinfo,
   [SYS_rename]      sys_rename,
+  [SYS_settickets]  sys_settickets,
+  [SYS_getpinfo]    sys_getpinfo,
+  [SYS_waitpid]     sys_waitpid,
 };
 
 static char *sysnames[] = {
@@ -173,6 +179,9 @@ static char *sysnames[] = {
   [SYS_trace]       "trace",
   [SYS_sysinfo]     "sysinfo",
   [SYS_rename]      "rename",
+  [SYS_settickets]  "settickets",
+  [SYS_getpinfo]    "getpinfo",
+  [SYS_waitpid]     "waitpid",
 };
 
 void
