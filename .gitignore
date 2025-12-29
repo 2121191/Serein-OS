@@ -18,3 +18,9 @@ target/*
 # Global ignore
 *.o
 *.d
+howtomerge.txt
+studynotebook.txt
+user目录中的文件说明.txt
+user目录addnew方案列表.txt
+.vscode/*
+lastmakefile.txt

@@ -84,11 +84,14 @@ main(unsigned long hartid, unsigned long dtb_pa)
     timerinit();     
     trapinithart();  
     procinit();
+<<<<<<< HEAD
     seminit();        // Initialize semaphore subsystem
     
     #ifdef DEBUG
     test_sem();       // Test semaphore implementation
     #endif
+=======
+>>>>>>> origin/double
     
     // 步骤 5: 使用驱动抽象层初始化 PLIC
     platform->plic->init();

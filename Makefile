@@ -213,6 +213,9 @@ UPROGS=\
 	$U/_stat\
 	$U/_semtest\
 	$U/_semtest2\
+	$U/_timer\
+	$U/_head\
+	$U/_tail\
 
 
 	# xiugai12281612
