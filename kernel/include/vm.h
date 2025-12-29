@@ -34,5 +34,6 @@ int             copyinstr2(char *dst, uint64 srcva, uint64 max);
 void            vmprint(pagetable_t pagetable);
 int             cow_handle(pagetable_t pagetable, pagetable_t kpagetable, uint64 va);
 int             lazy_alloc(pagetable_t pagetable, pagetable_t kpagetable, uint64 va, uint64 sz);
+int             mmap_handle_fault(pagetable_t pagetable, pagetable_t kpagetable, uint64 va);
 
 #endif 

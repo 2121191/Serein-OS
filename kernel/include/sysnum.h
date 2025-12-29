@@ -41,5 +41,7 @@
 #define SYS_shmattach   37
 #define SYS_shmdetach   38
 #define SYS_shmunlink   39
+#define SYS_mmap        40
+#define SYS_munmap      41
 
 #endif

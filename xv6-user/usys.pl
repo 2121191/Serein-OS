@@ -54,3 +54,5 @@ entry("shmopen");
 entry("shmattach");
 entry("shmdetach");
 entry("shmunlink");
+entry("mmap");
+entry("munmap");

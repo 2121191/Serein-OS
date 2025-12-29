@@ -129,6 +129,8 @@ extern uint64 sys_shmopen(void);
 extern uint64 sys_shmattach(void);
 extern uint64 sys_shmdetach(void);
 extern uint64 sys_shmunlink(void);
+extern uint64 sys_mmap(void);
+extern uint64 sys_munmap(void);
 
 static uint64 (*syscalls[])(void) = {
   [SYS_fork]        sys_fork,
@@ -170,6 +172,8 @@ static uint64 (*syscalls[])(void) = {
   [SYS_shmattach]   sys_shmattach,
   [SYS_shmdetach]   sys_shmdetach,
   [SYS_shmunlink]   sys_shmunlink,
+  [SYS_mmap]        sys_mmap,
+  [SYS_munmap]      sys_munmap,
 };
 
 static char *sysnames[] = {
@@ -212,6 +216,8 @@ static char *sysnames[] = {
   [SYS_shmattach]   "shmattach",
   [SYS_shmdetach]   "shmdetach",
   [SYS_shmunlink]   "shmunlink",
+  [SYS_mmap]        "mmap",
+  [SYS_munmap]      "munmap",
 };
 
 void

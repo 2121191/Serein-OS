@@ -74,7 +74,7 @@ usertrap(void)
   }
   else if(r_scause() == 13 || r_scause() == 15) {
     // Load Page Fault (13) 或 Store Page Fault (15)
-    // 可能是 CoW 或 Lazy Allocation 触发
+    // 可能是 CoW、Lazy Allocation 或 mmap 触发
     uint64 va = r_stval();
     int handled = 0;
     
@@ -88,6 +88,13 @@ usertrap(void)
     // 再尝试 Lazy Allocation 处理
     if (!handled) {
       if (lazy_alloc(p->pagetable, p->kpagetable, va, p->sz) == 0) {
+        handled = 1;
+      }
+    }
+    
+    // 最后尝试 mmap 缺页处理 (V2.0.2)
+    if (!handled) {
+      if (mmap_handle_fault(p->pagetable, p->kpagetable, va) == 0) {
         handled = 1;
       }
     }

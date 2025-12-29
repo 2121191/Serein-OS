@@ -8,6 +8,8 @@
 #include "include/proc.h"
 #include "include/printf.h"
 #include "include/string.h"
+#include "include/fcntl.h"
+#include "include/fat32.h"
 
 /*
  * the kernel's page table.
@@ -761,6 +763,70 @@ lazy_alloc(pagetable_t pagetable, pagetable_t kpagetable, uint64 va, uint64 sz)
   // 映射到进程内核页表
   if (mappages(kpagetable, va, PGSIZE, 
                (uint64)mem, PTE_W|PTE_R|PTE_X) != 0) {
+    vmunmap(pagetable, va, 1, 1);
+    return -1;
+  }
+  
+  return 0;
+}
+
+// V2.0.2: 处理 mmap 区域的缺页
+// 当访问 mmap 映射的虚拟地址但尚未分配物理页时调用
+int
+mmap_handle_fault(pagetable_t pagetable, pagetable_t kpagetable, uint64 va)
+{
+  struct proc *p = myproc();
+  va = PGROUNDDOWN(va);
+  
+  // 查找包含此地址的 VMA
+  struct vma *vma = 0;
+  for(int i = 0; i < MAX_VMA; i++) {
+    if(p->vmas[i].valid && 
+       va >= p->vmas[i].addr && 
+       va < p->vmas[i].addr + p->vmas[i].len) {
+      vma = &p->vmas[i];
+      break;
+    }
+  }
+  
+  if(vma == 0)
+    return -1;  // 不在任何 mmap 区域内
+  
+  // 分配物理页
+  char *mem = kalloc();
+  if(mem == 0)
+    return -1;
+  memset(mem, 0, PGSIZE);
+  
+  // 如果是文件映射，读取文件内容
+  if(vma->f) {
+    uint64 file_off = vma->offset + (va - vma->addr);
+    elock(vma->f->ep);
+    int n = eread(vma->f->ep, 0, (uint64)mem, file_off, PGSIZE);
+    eunlock(vma->f->ep);
+    if(n < 0) {
+      kfree(mem);
+      return -1;
+    }
+  }
+  
+  // 构建 PTE 标志
+  int perm = PTE_U;
+  if(vma->prot & PROT_READ)
+    perm |= PTE_R;
+  if(vma->prot & PROT_WRITE)
+    perm |= PTE_W;
+  if(vma->prot & PROT_EXEC)
+    perm |= PTE_X;
+  
+  // 映射到用户页表
+  if(mappages(pagetable, va, PGSIZE, (uint64)mem, perm) != 0) {
+    kfree(mem);
+    return -1;
+  }
+  
+  // 映射到进程内核页表
+  if(mappages(kpagetable, va, PGSIZE, (uint64)mem, perm & ~PTE_U) != 0) {
     vmunmap(pagetable, va, 1, 1);
     return -1;
   }

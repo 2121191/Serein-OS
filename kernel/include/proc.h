@@ -41,6 +41,19 @@ extern struct cpu cpus[NCPU];
 
 enum procstate { UNUSED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+// VMA (Virtual Memory Area) for mmap support (V2.0.2)
+#define MAX_VMA 16
+
+struct vma {
+  uint64 addr;        // 起始虚拟地址
+  uint64 len;         // 映射长度
+  int prot;           // 权限 (PROT_READ, PROT_WRITE, PROT_EXEC)
+  int flags;          // 标志 (MAP_SHARED, MAP_PRIVATE)
+  struct file *f;     // 关联的文件 (MAP_ANONYMOUS 时为 0)
+  uint64 offset;      // 文件偏移
+  int valid;          // 是否有效
+};
+
 // Per-process state
 struct proc {
   struct spinlock lock;
@@ -71,6 +84,9 @@ struct proc {
   uint64 pass;                  // 累计 pass 值，每次运行后 +stride
   uint64 runticks;              // 累计运行 ticks
   uint64 schedcount;            // 被调度次数
+
+  // mmap support (V2.0.2)
+  struct vma vmas[MAX_VMA];     // 虚拟内存区域数组
 };
 
 // 进程统计信息（用于 getpinfo 系统调用）
