@@ -13,6 +13,7 @@
 #include "include/file.h"
 #include "include/trap.h"
 #include "include/vm.h"
+#include "include/sched.h"
 
 
 struct cpu cpus[NCPU];
@@ -163,6 +164,9 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
+
+  // 彩票调度：初始化彩票数
+  p->tickets = DEFAULT_TICKETS;
 
   return p;
 }
@@ -366,6 +370,9 @@ fork(void)
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
 
+  // 彩票调度：子进程继承父进程的彩票数
+  np->tickets = p->tickets;
+
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;
 
@@ -530,12 +537,7 @@ wait(uint64 addr)
 }
 
 // Per-CPU process scheduler.
-// Each CPU calls scheduler() after setting itself up.
-// Scheduler never returns.  It loops, doing:
-//  - choose a process to run.
-//  - swtch to start running that process.
-//  - eventually that process transfers control
-//    via swtch back to the scheduler.
+// Lottery Scheduling: 每次调度随机抽取中奖进程，概率与彩票数成正比
 void
 scheduler(void)
 {
@@ -545,35 +547,48 @@ scheduler(void)
 
   c->proc = 0;
   for(;;){
-    // Avoid deadlock by ensuring that devices can interrupt.
+    // 允许中断，避免死锁
     intr_on();
-    
-    int found = 0;
+
+    // 阶段1：统计所有 RUNNABLE 进程的总彩票数
+    int total_tickets = 0;
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
       if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        // printf("[scheduler]found runnable proc with pid: %d\n", p->pid);
-        p->state = RUNNING;
-        c->proc = p;
-        w_satp(MAKE_SATP(p->kpagetable));
-        sfence_vma();
-        swtch(&c->context, &p->context);
-        w_satp(MAKE_SATP(kernel_pagetable));
-        sfence_vma();
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-
-        found = 1;
+        total_tickets += p->tickets;
       }
       release(&p->lock);
     }
-    if(found == 0) {
-      intr_on();
-      asm volatile("wfi");
+
+    // 阶段2：无可运行进程，空闲等待
+    if(total_tickets == 0) {
+      continue;
+    }
+
+    // 阶段3：随机抽取中奖彩票号
+    unsigned int winning_ticket = lcg_rand() % total_tickets;
+
+    // 阶段4：找到中奖进程并运行
+    int current = 0;
+    for(p = proc; p < &proc[NPROC]; p++) {
+      acquire(&p->lock);
+      if(p->state == RUNNABLE) {
+        current += p->tickets;
+        if(current > winning_ticket) {
+          // 该进程中奖，运行它
+          p->state = RUNNING;
+          c->proc = p;
+          w_satp(MAKE_SATP(p->kpagetable));
+          sfence_vma();
+          swtch(&c->context, &p->context);
+          w_satp(MAKE_SATP(kernel_pagetable));
+          sfence_vma();
+          c->proc = 0;
+          release(&p->lock);
+          break;
+        }
+      }
+      release(&p->lock);
     }
   }
 }
@@ -801,4 +816,3 @@ procnum(void)
 
   return num;
 }
-

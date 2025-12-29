@@ -64,6 +64,7 @@ struct proc {
   struct dirent *cwd;          // Current directory
   char name[16];               // Process name (debugging)
   int tmask;                    // trace mask
+  int tickets;                  // 彩票调度：持有的彩票数量
 };
 
 void            reg_info(void);
