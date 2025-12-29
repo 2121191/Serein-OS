@@ -10,10 +10,7 @@
 #include "include/kalloc.h"
 #include "include/string.h"
 #include "include/printf.h"
-<<<<<<< HEAD
 #include "include/sem.h"
-=======
->>>>>>> process-management
 #include "include/vm.h"
 
 extern int exec(char *path, char **argv);
