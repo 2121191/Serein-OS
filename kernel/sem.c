@@ -22,6 +22,10 @@ seminit(void)
     sems[i].count = 0;
     sems[i].ref = 0;
     sems[i].name[0] = 0;
+    // V2.0: 初始化等待队列
+    for(int j = 0; j < NPROC; j++)
+      sems[i].waiters[j] = 0;
+    sems[i].nwaiters = 0;
   }
   #ifdef DEBUG
   printf("seminit: initialized %d semaphores\n", NSEM);
@@ -107,8 +111,22 @@ semwait(struct sem *sem)
   #endif
   sem->count--;
   if(sem->count < 0) {
+    // V2.0: 加入等待队列
+    struct proc *p = myproc();
+    if(sem->nwaiters < NPROC) {
+      sem->waiters[sem->nwaiters++] = p;
+    }
     // Block until someone posts
     sleep(sem, &sem->lock);
+    // V2.0: 从等待队列移除 (可能被 kill 或正常唤醒)
+    for(int i = 0; i < sem->nwaiters; i++) {
+      if(sem->waiters[i] == p) {
+        for(int j = i; j < sem->nwaiters - 1; j++)
+          sem->waiters[j] = sem->waiters[j+1];
+        sem->waiters[--sem->nwaiters] = 0;
+        break;
+      }
+    }
   }
   #ifdef DEBUG
   printf("semwait: after wait, count = %d\n", sem->count);
@@ -150,6 +168,35 @@ sempost(struct sem *sem)
   printf("sempost: after post, count = %d\n", sem->count);
   #endif
   release(&sem->lock);
+}
+
+// V2.0: 进程退出时清理信号量等待
+// 从所有信号量的等待队列中移除该进程并恢复信号量计数
+void
+sem_cleanup_proc(struct proc *p)
+{
+  if(p == 0)
+    return;
+  
+  for(int s = 0; s < NSEM; s++) {
+    struct sem *sem = &sems[s];
+    if(sem->ref == 0)
+      continue;
+    
+    acquire(&sem->lock);
+    for(int i = 0; i < sem->nwaiters; i++) {
+      if(sem->waiters[i] == p) {
+        // 从队列移除
+        for(int j = i; j < sem->nwaiters - 1; j++)
+          sem->waiters[j] = sem->waiters[j+1];
+        sem->waiters[--sem->nwaiters] = 0;
+        // 修复信号量计数 (该进程执行了 count-- 但不会执行后续操作)
+        sem->count++;
+        break;
+      }
+    }
+    release(&sem->lock);
+  }
 }
 
 // Test function for semaphore (only callable from kernel)

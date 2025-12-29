@@ -10,6 +10,7 @@
 #include "include/printf.h"
 #include "include/string.h"
 #include "include/shm.h"
+#include "include/sem.h"
 #include "include/fat32.h"
 #include "include/file.h"
 #include "include/trap.h"
@@ -145,6 +146,7 @@ found:
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == NULL){
+    freeproc(p);  // 恢复进程槽状态为 UNUSED
     release(&p->lock);
     return NULL;
   }
@@ -166,8 +168,10 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
-  // 彩票调度：初始化彩票数和统计信息
+  // Stride 调度：初始化调度参数
   p->tickets = DEFAULT_TICKETS;
+  p->stride = STRIDE_LARGE / DEFAULT_TICKETS;
+  p->pass = 0;  // 新进程从 0 开始 (将在调度时调整)
   p->runticks = 0;
   p->schedcount = 0;
 
@@ -375,8 +379,10 @@ fork(void)
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
 
-  // 彩票调度：子进程继承父进程的彩票数
+  // Stride 调度：子进程继承父进程调度参数
   np->tickets = p->tickets;
+  np->stride = p->stride;  // 继承 stride
+  np->pass = p->pass;      // 继承 pass 值，保证公平性
 
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;
@@ -434,6 +440,9 @@ exit(int status)
 
   if(p == initproc)
     panic("init exiting");
+
+  // V2.0: 清理信号量等待队列 (防止死锁)
+  sem_cleanup_proc(p);
 
   // Close all open files.
   for(int fd = 0; fd < NOFILE; fd++){
@@ -594,7 +603,8 @@ waitpid(int target_pid, uint64 addr, int options)
 }
 
 // Per-CPU process scheduler.
-// Lottery Scheduling: 每次调度随机抽取中奖进程，概率与彩票数成正比
+// Stride Scheduling (V2.0): 选择 pass 最小的进程运行
+// 使用 RR 风格的锁持有模式，边扫描边运行避免竞态
 void
 scheduler(void)
 {
@@ -607,47 +617,37 @@ scheduler(void)
     // 允许中断，避免死锁
     intr_on();
 
-    // 阶段1：统计所有 RUNNABLE 进程的总彩票数
-    int total_tickets = 0;
+    // Stride 调度：扫描并选择 pass 最小的 RUNNABLE 进程
+    // 关键优化：找到最小 pass 后立即运行（持锁状态），避免释放锁后状态变化
+    struct proc *minp = 0;
+    uint64 min_pass = ~0ULL;
+    
+    // 第一遍：找到 pass 最小的进程（不持锁）
     for(p = proc; p < &proc[NPROC]; p++) {
-      acquire(&p->lock);
-      if(p->state == RUNNABLE) {
-        total_tickets += p->tickets;
+      if(p->state == RUNNABLE && p->pass < min_pass) {
+        min_pass = p->pass;
+        minp = p;
       }
-      release(&p->lock);
     }
-
-    // 阶段2：无可运行进程，空闲等待
-    if(total_tickets == 0) {
+    
+    if(minp == 0)
       continue;
+    
+    // 第二步：加锁确认并运行
+    acquire(&minp->lock);
+    if(minp->state == RUNNABLE) {
+      minp->state = RUNNING;
+      minp->schedcount++;
+      minp->pass += minp->stride;
+      c->proc = minp;
+      w_satp(MAKE_SATP(minp->kpagetable));
+      sfence_vma();
+      swtch(&c->context, &minp->context);
+      w_satp(MAKE_SATP(kernel_pagetable));
+      sfence_vma();
+      c->proc = 0;
     }
-
-    // 阶段3：随机抽取中奖彩票号
-    unsigned int winning_ticket = lcg_rand() % total_tickets;
-
-    // 阶段4：找到中奖进程并运行
-    int current = 0;
-    for(p = proc; p < &proc[NPROC]; p++) {
-      acquire(&p->lock);
-      if(p->state == RUNNABLE) {
-        current += p->tickets;
-        if(current > winning_ticket) {
-          // 该进程中奖，运行它
-          p->state = RUNNING;
-          p->schedcount++;  // 记录被调度次数
-          c->proc = p;
-          w_satp(MAKE_SATP(p->kpagetable));
-          sfence_vma();
-          swtch(&c->context, &p->context);
-          w_satp(MAKE_SATP(kernel_pagetable));
-          sfence_vma();
-          c->proc = 0;
-          release(&p->lock);
-          break;
-        }
-      }
-      release(&p->lock);
-    }
+    release(&minp->lock);
   }
 }
 

@@ -221,6 +221,9 @@ UPROGS=\
 	$U/_head\
 	$U/_tail\
 	$U/_ps\
+	$U/_cowstress\
+	$U/_semstress\
+	$U/_shmstress\
 
 
 	# xiugai12281612

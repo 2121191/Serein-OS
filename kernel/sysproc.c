@@ -11,6 +11,7 @@
 #include "include/string.h"
 #include "include/printf.h"
 #include "include/sem.h"
+#include "include/sched.h"
 #include "include/vm.h"
 
 extern int exec(char *path, char **argv);
@@ -257,7 +258,7 @@ sys_sem_getvalue(void)
   
   return 0;
 }
-// 设置当前进程的彩票数
+// 设置当前进程的票数权重 (Stride 调度)
 uint64
 sys_settickets(void)
 {
@@ -265,11 +266,13 @@ sys_settickets(void)
   if(argint(0, &n) < 0)
     return -1;
   
-  // 边界检查：彩票数必须在 1-100 之间
-  if(n < 1 || n > 100)
+  // 边界检查：票数必须在合法范围内
+  if(n < MIN_TICKETS || n > MAX_TICKETS)
     return -1;
   
-  myproc()->tickets = n;
+  struct proc *p = myproc();
+  p->tickets = n;
+  p->stride = STRIDE_LARGE / n;  // 重新计算 stride
   return 0;
 }
 

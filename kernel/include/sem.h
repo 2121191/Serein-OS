@@ -3,14 +3,20 @@
 
 #include "types.h"
 #include "spinlock.h"
+#include "param.h"
 
 #define NSEM 32  // maximum number of semaphores
 
+// Forward declaration
+struct proc;
+
 struct sem {
-  struct spinlock lock;  // protects this semaphore
-  int count;             // semaphore value (can be negative)
-  int ref;               // reference count
-  char name[16];         // semaphore name (for debugging)
+  struct spinlock lock;       // protects this semaphore
+  int count;                  // semaphore value (can be negative)
+  int ref;                    // reference count
+  char name[16];              // semaphore name (for debugging)
+  struct proc *waiters[NPROC]; // V2.0: 等待队列 (防止 kill 死锁)
+  int nwaiters;               // 等待者数量
 };
 
 // Initialize semaphore subsystem
@@ -36,6 +42,10 @@ void sempost(struct sem *sem);
 // Get semaphore value
 // Returns 0 on success, -1 on failure
 int semgetvalue(struct sem *sem, int *value);
+
+// V2.0: 进程退出时清理信号量等待
+// 从所有信号量的等待队列中移除该进程
+void sem_cleanup_proc(struct proc *p);
 
 #endif
 

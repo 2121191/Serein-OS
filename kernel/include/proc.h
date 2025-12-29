@@ -64,7 +64,11 @@ struct proc {
   struct dirent *cwd;          // Current directory
   char name[16];               // Process name (debugging)
   int tmask;                    // trace mask
-  int tickets;                  // 彩票调度：持有的彩票数量
+  
+  // Stride Scheduling (V2.0)
+  int tickets;                  // 票数权重 (1-100)
+  uint64 stride;                // stride = STRIDE_LARGE / tickets
+  uint64 pass;                  // 累计 pass 值，每次运行后 +stride
   uint64 runticks;              // 累计运行 ticks
   uint64 schedcount;            // 被调度次数
 };

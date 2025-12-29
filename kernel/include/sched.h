@@ -1,20 +1,23 @@
 #ifndef __SCHED_H
 #define __SCHED_H
 
-// 彩票调度常量
-#define DEFAULT_TICKETS     10    // 新进程的默认彩票数
+// ============================================
+// Stride Scheduling (V2.0)
+// ============================================
+// Stride 调度替代彩票调度，提供确定性比例分配
+// stride = STRIDE_LARGE / tickets
+// 每次运行后 pass += stride
+// 选择 pass 最小的进程运行
 
-// 线性同余发生器 (LCG) - Numerical Recipes 标准常数
-// 全整数运算，无浮点数
-static unsigned int lcg_seed = 1;
+// 大常数 L = 2^20，用于计算 stride
+// 确保足够精度且避免整数溢出
+#define STRIDE_LARGE    (1 << 20)
 
-static inline unsigned int lcg_rand(void) {
-    lcg_seed = lcg_seed * 1664525 + 1013904223;
-    return lcg_seed;
-}
+// 新进程的默认彩票数 (兼容原有 API)
+#define DEFAULT_TICKETS     10
 
-static inline void lcg_srand(unsigned int seed) {
-    lcg_seed = seed;
-}
+// 最大/最小彩票数限制
+#define MAX_TICKETS         100
+#define MIN_TICKETS         1
 
 #endif
