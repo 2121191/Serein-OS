@@ -216,6 +216,7 @@ UPROGS=\
 	$U/_timer\
 	$U/_head\
 	$U/_tail\
+	$U/_ps\
 
 
 	# xiugai12281612

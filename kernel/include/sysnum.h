@@ -33,5 +33,8 @@
 #define SYS_sem_post    29
 #define SYS_sem_close   30
 #define SYS_sem_getvalue 31
+#define SYS_settickets  32
+#define SYS_getpinfo    33
+#define SYS_waitpid     34
 
 #endif

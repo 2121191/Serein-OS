@@ -46,3 +46,6 @@ entry("sem_wait");
 entry("sem_post");
 entry("sem_close");
 entry("sem_getvalue");
+entry("settickets");
+entry("getpinfo");
+entry("waitpid");

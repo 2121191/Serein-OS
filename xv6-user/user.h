@@ -5,6 +5,7 @@
 struct stat;
 struct rtcdate;
 struct sysinfo;
+struct pstat;
 
 // system calls
 int fork(void);
@@ -38,6 +39,9 @@ int sem_wait(int sem_id);
 int sem_post(int sem_id);
 int sem_close(int sem_id);
 int sem_getvalue(int sem_id, int *value);
+int settickets(int n);
+int getpinfo(struct pstat *);
+int waitpid(int pid, int *status, int options);
 
 // ulib.c
 int stat(const char*, struct stat*);
