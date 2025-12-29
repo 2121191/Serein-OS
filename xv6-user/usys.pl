@@ -49,3 +49,8 @@ entry("sem_getvalue");
 entry("settickets");
 entry("getpinfo");
 entry("waitpid");
+entry("shmcreate");
+entry("shmopen");
+entry("shmattach");
+entry("shmdetach");
+entry("shmunlink");

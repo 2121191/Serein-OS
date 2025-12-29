@@ -15,6 +15,7 @@
 #include "include/buf.h"
 #include "include/sem.h"
 #include "include/sched.h"
+#include "include/shm.h"
 #include "driver/driver.h"
 
 #ifndef QEMU
@@ -86,6 +87,7 @@ main(unsigned long hartid, unsigned long dtb_pa)
     trapinithart();  
     procinit();
     seminit();        // Initialize semaphore subsystem
+    shminit();        // Initialize shared memory subsystem
     
     #ifdef DEBUG
     test_sem();       // Test semaphore implementation

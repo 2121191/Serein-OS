@@ -30,10 +30,12 @@ OBJS += \
   $K/bio.o \
   $K/sleeplock.o \
   $K/sem.o \
+  $K/shm.o \
   $K/file.o \
   $K/pipe.o \
   $K/exec.o \
   $K/sysfile.o \
+  $K/sysshm.o \
   $K/timer.o \
   $K/kernelvec.o \
   $K/disk.o \
@@ -201,6 +203,8 @@ UPROGS=\
 	$U/_mkdir\
 	$U/_xargs\
 	$U/_sleep\
+	$U/_shmtest1\
+	$U/_shmtest2\
 	$U/_find\
 	$U/_rm\
 	$U/_wc\

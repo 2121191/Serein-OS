@@ -42,6 +42,11 @@ int sem_getvalue(int sem_id, int *value);
 int settickets(int n);
 int getpinfo(struct pstat *);
 int waitpid(int pid, int *status, int options);
+int shmcreate(char *name, uint64 size);
+int shmopen(char *name);
+uint64 shmattach(int shmid);
+int shmdetach(uint64 va, uint64 size);
+int shmunlink(char *name);
 
 // ulib.c
 int stat(const char*, struct stat*);

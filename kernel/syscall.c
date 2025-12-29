@@ -124,6 +124,11 @@ extern uint64 sys_sem_getvalue(void);
 extern uint64 sys_settickets(void);
 extern uint64 sys_getpinfo(void);
 extern uint64 sys_waitpid(void);
+extern uint64 sys_shmcreate(void);
+extern uint64 sys_shmopen(void);
+extern uint64 sys_shmattach(void);
+extern uint64 sys_shmdetach(void);
+extern uint64 sys_shmunlink(void);
 
 static uint64 (*syscalls[])(void) = {
   [SYS_fork]        sys_fork,
@@ -160,6 +165,11 @@ static uint64 (*syscalls[])(void) = {
   [SYS_settickets]  sys_settickets,
   [SYS_getpinfo]    sys_getpinfo,
   [SYS_waitpid]     sys_waitpid,
+  [SYS_shmcreate]   sys_shmcreate,
+  [SYS_shmopen]     sys_shmopen,
+  [SYS_shmattach]   sys_shmattach,
+  [SYS_shmdetach]   sys_shmdetach,
+  [SYS_shmunlink]   sys_shmunlink,
 };
 
 static char *sysnames[] = {
@@ -197,6 +207,11 @@ static char *sysnames[] = {
   [SYS_settickets]  "settickets",
   [SYS_getpinfo]    "getpinfo",
   [SYS_waitpid]     "waitpid",
+  [SYS_shmcreate]   "shmcreate",
+  [SYS_shmopen]     "shmopen",
+  [SYS_shmattach]   "shmattach",
+  [SYS_shmdetach]   "shmdetach",
+  [SYS_shmunlink]   "shmunlink",
 };
 
 void

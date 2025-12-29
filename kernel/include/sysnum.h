@@ -36,5 +36,10 @@
 #define SYS_settickets  32
 #define SYS_getpinfo    33
 #define SYS_waitpid     34
+#define SYS_shmcreate   35
+#define SYS_shmopen     36
+#define SYS_shmattach   37
+#define SYS_shmdetach   38
+#define SYS_shmunlink   39
 
 #endif

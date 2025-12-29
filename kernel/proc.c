@@ -9,6 +9,7 @@
 #include "include/kalloc.h"
 #include "include/printf.h"
 #include "include/string.h"
+#include "include/shm.h"
 #include "include/fat32.h"
 #include "include/file.h"
 #include "include/trap.h"
@@ -239,6 +240,8 @@ proc_freepagetable(pagetable_t pagetable, uint64 sz)
 {
   vmunmap(pagetable, TRAMPOLINE, 1, 0);
   vmunmap(pagetable, TRAPFRAME, 1, 0);
+  // Detach any shared memory mappings the process may still hold
+  shmdetach_all(pagetable);
   uvmfree(pagetable, sz);
 }
 
