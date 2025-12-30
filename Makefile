@@ -234,6 +234,7 @@ UPROGS=\
 	$U/_idtest\
 	$U/_pgtest\
 	$U/_testdev\
+	$U/_cls\
 
 
 	# xiugai12281612

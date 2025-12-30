@@ -869,8 +869,6 @@ kill_sig(int pid, int sig)
 
 // V2.1: 检查并处理当前进程的待处理信号
 // 在返回用户空间前调用 (usertrap/usertrapret)
-// V2.1: 检查并处理当前进程的待处理信号
-// 在返回用户空间前调用 (usertrap/usertrapret)
 void
 check_signals(void)
 {
