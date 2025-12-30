@@ -225,6 +225,7 @@ UPROGS=\
 	$U/_semstress\
 	$U/_shmstress\
 	$U/_mmaptest\
+	$U/_bigfile\
 
 
 	# xiugai12281612

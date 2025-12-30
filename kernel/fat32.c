@@ -9,6 +9,7 @@
 #include "include/fat32.h"
 #include "include/string.h"
 #include "include/printf.h"
+#include "include/defs.h"
 
 /* fields that start with "_" are something we don't use */
 
@@ -210,33 +211,67 @@ static void zero_clus(uint32 cluster)
     }
 }
 
+// V2.0 Optimization: Remember last allocated cluster position to avoid O(n) scan
+static uint32 next_free_clus_hint = 2;  // Start from cluster 2 (first valid data cluster)
+
 static uint32 alloc_clus(uint8 dev)
 {
-    // should we keep a free cluster list? instead of searching fat every time.
     struct buf *b;
-    uint32 sec = fat.bpb.rsvd_sec_cnt;
     uint32 const ent_per_sec = fat.bpb.byts_per_sec / sizeof(uint32);
-    for (uint32 i = 0; i < fat.bpb.fat_sz; i++, sec++) {
+    uint32 total_clus = fat.data_clus_cnt + 2;  // Include reserved clusters 0,1
+    
+    // Start from hint position
+    uint32 start_clus = next_free_clus_hint;
+    if (start_clus < 2 || start_clus >= total_clus) {
+        start_clus = 2;
+    }
+    
+    // Calculate starting sector and offset within sector
+    uint32 start_sec_idx = start_clus / ent_per_sec;
+    uint32 start_offset = start_clus % ent_per_sec;
+    
+    // Search from hint to end
+    for (uint32 i = start_sec_idx; i < fat.bpb.fat_sz; i++) {
+        uint32 sec = fat.bpb.rsvd_sec_cnt + i;
         b = bread(dev, sec);
-        for (uint32 j = 0; j < ent_per_sec; j++) {
+        uint32 j_start = (i == start_sec_idx) ? start_offset : 0;
+        for (uint32 j = j_start; j < ent_per_sec; j++) {
             if (((uint32 *)(b->data))[j] == 0) {
                 ((uint32 *)(b->data))[j] = FAT32_EOC + 7;
                 bwrite(b);
                 brelse(b);
                 uint32 clus = i * ent_per_sec + j;
+                next_free_clus_hint = clus + 1;  // Update hint for next allocation
                 zero_clus(clus);
                 return clus;
             }
         }
         brelse(b);
     }
+    
+    // Wraparound: search from beginning to hint
+    for (uint32 i = 0; i < start_sec_idx; i++) {
+        uint32 sec = fat.bpb.rsvd_sec_cnt + i;
+        b = bread(dev, sec);
+        uint32 j_end = (i == start_sec_idx - 1) ? start_offset : ent_per_sec;
+        for (uint32 j = 0; j < j_end; j++) {
+            if (((uint32 *)(b->data))[j] == 0) {
+                ((uint32 *)(b->data))[j] = FAT32_EOC + 7;
+                bwrite(b);
+                brelse(b);
+                uint32 clus = i * ent_per_sec + j;
+                next_free_clus_hint = clus + 1;
+                zero_clus(clus);
+                return clus;
+            }
+        }
+        brelse(b);
+    }
+    
     panic("no clusters");
 }
 
-static void free_clus(uint32 cluster)
-{
-    write_fat(cluster, 0);
-}
+// free_clus removed in V2.0: etrunc now handles batch FAT updates directly
 
 static uint rw_clus(uint32 cluster, int write, int user, uint64 data, uint off, uint n)
 {
@@ -293,10 +328,32 @@ static int reloc_clus(struct dirent *entry, uint off, int alloc)
         }
         entry->cur_clus = clus;
         entry->clus_cnt++;
+        // V2.0: Populate Sparse Cluster Index
+        if (entry->clus_cnt % 128 == 0) {
+            int idx = entry->clus_cnt / 128 - 1;
+            if (!entry->index) {
+                entry->index = (uint32*)kalloc();
+                if (entry->index) {
+                    memset(entry->index, 0, PGSIZE);
+                    entry->index_cnt = 0;
+                }
+            }
+            if (entry->index && idx < 1024) {
+                entry->index[idx] = clus;
+                if (idx >= entry->index_cnt) entry->index_cnt = idx + 1;
+            }
+        }
     }
     if (clus_num < entry->clus_cnt) {
-        entry->cur_clus = entry->first_clus;
-        entry->clus_cnt = 0;
+        // V2.0: Sparse Index fast seek
+        int target_idx = clus_num / 128 - 1;
+        if (entry->index != 0 && target_idx >= 0 && target_idx < entry->index_cnt) {
+            entry->cur_clus = entry->index[target_idx];
+            entry->clus_cnt = (target_idx + 1) * 128;
+        } else {
+            entry->cur_clus = entry->first_clus;
+            entry->clus_cnt = 0;
+        }
         while (entry->clus_cnt < clus_num) {
             entry->cur_clus = read_fat(entry->cur_clus);
             if (entry->cur_clus >= FAT32_EOC) {
@@ -393,7 +450,15 @@ static struct dirent *eget(struct dirent *parent, char *name)
             ep->dev = parent->dev;
             ep->off = 0;
             ep->valid = 0;
+            ep->off = 0;
+            ep->valid = 0;
             ep->dirty = 0;
+            // V2.0: Free index if it exists
+            if(ep->index) {
+                kfree((void*)ep->index);
+                ep->index = 0;
+                ep->index_cnt = 0;
+            }
             release(&ecache.lock);
             return ep;
         }
@@ -637,15 +702,62 @@ void eremove(struct dirent *entry)
 
 // truncate a file
 // caller must hold entry->lock
+// V2.0 Optimization: Batch FAT table updates to reduce disk I/O
 void etrunc(struct dirent *entry)
 {
-    for (uint32 clus = entry->first_clus; clus >= 2 && clus < FAT32_EOC; ) {
-        uint32 next = read_fat(clus);
-        free_clus(clus);
+    if (entry->first_clus == 0) {
+        return;  // Already empty
+    }
+    
+    struct buf *b = NULL;
+    uint32 last_fat_sec = ~0U;
+    uint32 clus = entry->first_clus;
+    
+    // Reset hint if we're freeing clusters that might be before current hint
+    if (clus < next_free_clus_hint) {
+        next_free_clus_hint = clus;
+    }
+    
+    while (clus >= 2 && clus < FAT32_EOC) {
+        uint32 fat_sec = fat_sec_of_clus(clus, 1);
+        uint32 fat_off = fat_offset_of_clus(clus);
+        
+        // Switch to new FAT sector if needed
+        if (fat_sec != last_fat_sec) {
+            if (b != NULL) {
+                bwrite(b);
+                brelse(b);
+            }
+            b = bread(0, fat_sec);
+            last_fat_sec = fat_sec;
+        }
+        
+        // Read next cluster before zeroing current entry
+        uint32 next = *(uint32 *)(b->data + fat_off);
+        
+        // Mark cluster as free
+        *(uint32 *)(b->data + fat_off) = 0;
+        
         clus = next;
     }
+    
+    // Flush last buffer
+    if (b != NULL) {
+        bwrite(b);
+        brelse(b);
+    }
+    
     entry->file_size = 0;
     entry->first_clus = 0;
+    entry->first_clus = 0;
+    entry->cur_clus = 0;
+    entry->clus_cnt = 0;
+    // V2.0: Free index
+    if(entry->index) {
+        kfree((void*)entry->index);
+        entry->index = 0;
+        entry->index_cnt = 0;
+    }
     entry->dirty = 1;
 }
 
