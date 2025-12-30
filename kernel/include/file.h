@@ -25,6 +25,8 @@ struct devsw {
 extern struct devsw devsw[];
 
 #define CONSOLE 1
+#define NULL_DEV 2
+#define ZERO_DEV 3
 
 struct file*    filealloc(void);
 void            fileclose(struct file*);
@@ -34,5 +36,9 @@ int             fileread(struct file*, uint64, int n);
 int             filestat(struct file*, uint64 addr);
 int             filewrite(struct file*, uint64, int n);
 int             dirnext(struct file *f, uint64 addr);
+
+// Device initialization functions
+void            nullinit(void);
+void            zeroinit(void);
 
 #endif
