@@ -41,7 +41,9 @@ OBJS += \
   $K/disk.o \
   $K/fat32.o \
   $K/plic.o \
-  $K/console.o
+  $K/console.o \
+  $K/null.o \
+  $K/zero.o
 
 ifeq ($(platform), k210)
 OBJS += \
@@ -228,6 +230,7 @@ UPROGS=\
 	$U/_bigfile\
 	$U/_sigtest\
 	$U/_sigtest2\
+	$U/_testdev\
 
 
 	# xiugai12281612

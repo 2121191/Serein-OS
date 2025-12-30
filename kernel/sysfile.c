@@ -175,6 +175,37 @@ sys_open(void)
   if(argstr(0, path, FAT32_MAX_PATH) < 0 || argint(1, &omode) < 0)
     return -1;
 
+  // Handle device files: /dev/null and /dev/zero
+  if(strncmp("/dev/null", path, 9) == 0) {
+    if((f = filealloc()) == NULL || (fd = fdalloc(f)) < 0) {
+      if(f)
+        fileclose(f);
+      return -1;
+    }
+    f->type = FD_DEVICE;
+    f->off = 0;
+    f->ep = 0;
+    f->major = NULL_DEV;
+    f->readable = !(omode & O_WRONLY);
+    f->writable = (omode & O_WRONLY) || (omode & O_RDWR);
+    return fd;
+  }
+  
+  if(strncmp("/dev/zero", path, 9) == 0) {
+    if((f = filealloc()) == NULL || (fd = fdalloc(f)) < 0) {
+      if(f)
+        fileclose(f);
+      return -1;
+    }
+    f->type = FD_DEVICE;
+    f->off = 0;
+    f->ep = 0;
+    f->major = ZERO_DEV;
+    f->readable = !(omode & O_WRONLY);
+    f->writable = (omode & O_WRONLY) || (omode & O_RDWR);
+    return fd;
+  }
+
   if(omode & O_CREATE){
     ep = create(path, T_FILE, omode);
     if(ep == NULL){

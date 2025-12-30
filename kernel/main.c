@@ -17,6 +17,7 @@
 #include "include/sched.h"
 #include "include/shm.h"
 #include "driver/driver.h"
+#include "include/file.h"
 
 #ifndef QEMU
 #include "include/sdcard.h"
@@ -109,7 +110,12 @@ main(unsigned long hartid, unsigned long dtb_pa)
     platform->disk->init();
     
     binit();         
-    fileinit();      
+    fileinit();
+    
+    // Initialize device files
+    nullinit();      // /dev/null
+    zeroinit();      // /dev/zero
+      
     userinit();      
     
     printf("hart %d init done (I am the Master)\n", hartid);
