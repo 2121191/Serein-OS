@@ -20,7 +20,11 @@
 #include "include/string.h"
 #include "include/printf.h"
 #include "include/vm.h"
+#include "include/memlayout.h"
+#include "include/kalloc.h"
 
+// Forward declarations for vm.c internal functions
+pte_t *walk(pagetable_t pagetable, uint64 va, int alloc);
 
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
@@ -412,8 +416,9 @@ sys_remove(void)
   return 0;
 }
 
-// Must hold too many locks at a time! It's possible to raise a deadlock.
-// Because this op takes some steps, we can't promise
+// V2.0.1 修复：基于地址的锁排序，防止死锁
+// 规则：总是先锁地址较小的 dirent，后锁地址较大的
+// Because this op takes some steps, we can't promise atomicity
 uint64
 sys_rename(void)
 {
@@ -423,35 +428,48 @@ sys_rename(void)
   }
 
   struct dirent *src = NULL, *dst = NULL, *pdst = NULL;
-  int srclock = 0;
+  int srclock = 0, pdstlock = 0;
   char *name;
   if ((src = ename(old)) == NULL || (pdst = enameparent(new, old)) == NULL
       || (name = formatname(old)) == NULL) {
     goto fail;          // src doesn't exist || dst parent doesn't exist || illegal new name
   }
+  
+  // 检查循环引用：不能将目录移动到其子目录中
   for (struct dirent *ep = pdst; ep != NULL; ep = ep->parent) {
-    if (ep == src) {    // In what universe can we move a directory into its child?
+    if (ep == src) {
       goto fail;
     }
   }
 
+  // V2.0.1 锁排序：基于地址顺序获取锁，防止死锁
+  // 规则：地址小的先锁
   uint off;
-  elock(src);     // must hold child's lock before acquiring parent's, because we do so in other similar cases
-  srclock = 1;
-  elock(pdst);
+  if ((uint64)src < (uint64)pdst) {
+    elock(src);
+    srclock = 1;
+    elock(pdst);
+    pdstlock = 1;
+  } else {
+    elock(pdst);
+    pdstlock = 1;
+    elock(src);
+    srclock = 1;
+  }
+  
   dst = dirlookup(pdst, name, &off);
   if (dst != NULL) {
-    eunlock(pdst);
     if (src == dst) {
       goto fail;
     } else if (src->attribute & dst->attribute & ATTR_DIRECTORY) {
       elock(dst);
-      if (!isdirempty(dst)) {    // it's ok to overwrite an empty dir
+      if (!isdirempty(dst)) {
         eunlock(dst);
         goto fail;
       }
-      elock(pdst);
-    } else {                    // src is not a dir || dst exists and is not an dir
+      // dst 锁持有继续
+    } else {
+      // src is not a dir || dst exists and is not a dir
       goto fail;
     }
   }
@@ -462,17 +480,35 @@ sys_rename(void)
   }
   memmove(src->filename, name, FAT32_MAX_FILENAME);
   emake(pdst, src, off);
-  if (src->parent != pdst) {
+  
+  // 处理 src 的父目录锁
+  struct dirent *psrc = src->parent;
+  if (psrc != pdst) {
+    // 需要锁 psrc，但要保持锁顺序
     eunlock(pdst);
-    elock(src->parent);
+    pdstlock = 0;
+    if (psrc != src) {  // 防止自锁
+      elock(psrc);
+      eremove(src);
+      eunlock(psrc);
+    }
+  } else {
+    // psrc == pdst，已持锁
+    eremove(src);
   }
-  eremove(src);
-  eunlock(src->parent);
-  struct dirent *psrc = src->parent;  // src must not be root, or it won't pass the for-loop test
+  
   src->parent = edup(pdst);
   src->off = off;
   src->valid = 1;
-  eunlock(src);
+  
+  if (srclock) {
+    eunlock(src);
+    srclock = 0;
+  }
+  if (pdstlock) {
+    eunlock(pdst);
+    pdstlock = 0;
+  }
 
   eput(psrc);
   if (dst) {
@@ -486,11 +522,178 @@ sys_rename(void)
 fail:
   if (srclock)
     eunlock(src);
+  if (pdstlock)
+    eunlock(pdst);
   if (dst)
     eput(dst);
   if (pdst)
     eput(pdst);
   if (src)
     eput(src);
+  return -1;
+}
+
+// V2.0.2: mmap implementation
+// Maps a file or anonymous memory into the process's virtual address space
+// mmap 区域从 MMAPBASE 开始，向高地址增长，不影响 p->sz
+#define MMAPBASE 0x40000000  // 1GB - mmap 起始地址
+
+uint64
+sys_mmap(void)
+{
+  uint64 addr;
+  uint64 len;
+  int prot, flags, fd;
+  uint64 offset;
+  struct proc *p = myproc();
+  struct file *f = 0;
+  
+  // 获取参数: mmap(addr, len, prot, flags, fd, offset)
+  if(argaddr(0, &addr) < 0 || argaddr(1, &len) < 0 || 
+     argint(2, &prot) < 0 || argint(3, &flags) < 0 ||
+     argint(4, &fd) < 0 || argaddr(5, &offset) < 0)
+    return -1;
+  
+  // 验证长度
+  if(len == 0)
+    return -1;
+  
+  // 处理文件映射 vs 匿名映射
+  if(!(flags & MAP_ANONYMOUS)) {
+    // 文件映射：获取文件
+    if(fd < 0 || fd >= NOFILE || (f = p->ofile[fd]) == 0)
+      return -1;
+    
+    // 检查权限兼容性
+    if((prot & PROT_READ) && !f->readable)
+      return -1;
+    if((prot & PROT_WRITE) && (flags & MAP_SHARED) && !f->writable)
+      return -1;
+  }
+  
+  // 找到一个空闲的 VMA 槽
+  struct vma *vma = 0;
+  for(int i = 0; i < MAX_VMA; i++) {
+    if(!p->vmas[i].valid) {
+      vma = &p->vmas[i];
+      break;
+    }
+  }
+  if(vma == 0)
+    return -1;  // 没有空闲 VMA 槽
+  
+  // 分配虚拟地址空间
+  // 使用 MMAPBASE 开始的区域，不修改 p->sz
+  len = PGROUNDUP(len);
+  
+  // 查找最高的已分配 mmap 地址
+  uint64 va = MMAPBASE;
+  for(int i = 0; i < MAX_VMA; i++) {
+    if(p->vmas[i].valid && p->vmas[i].addr + p->vmas[i].len > va) {
+      va = p->vmas[i].addr + p->vmas[i].len;
+    }
+  }
+  va = PGROUNDUP(va);
+  
+  // 确保不会与 TRAPFRAME 冲突
+  if(va + len > TRAPFRAME)
+    return -1;
+  
+  // 初始化 VMA
+  vma->addr = va;
+  vma->len = len;
+  vma->prot = prot;
+  vma->flags = flags;
+  vma->offset = offset;
+  vma->valid = 1;
+  
+  if(f) {
+    vma->f = f;
+    filedup(f);  // 增加文件引用计数
+  } else {
+    vma->f = 0;  // 匿名映射
+  }
+  
+  // 不再修改 p->sz，mmap 区域与堆分离
+  
+  return va;
+}
+
+// V2.0.2: munmap implementation
+// Unmaps a previously mapped region
+uint64
+sys_munmap(void)
+{
+  uint64 addr;
+  uint64 len;
+  struct proc *p = myproc();
+  
+  if(argaddr(0, &addr) < 0 || argaddr(1, &len) < 0)
+    return -1;
+  
+  if(len == 0)
+    return 0;
+  
+  len = PGROUNDUP(len);
+  addr = PGROUNDDOWN(addr);
+  
+  // 找到对应的 VMA
+  struct vma *vma = 0;
+  for(int i = 0; i < MAX_VMA; i++) {
+    if(p->vmas[i].valid && 
+       addr >= p->vmas[i].addr && 
+       addr < p->vmas[i].addr + p->vmas[i].len) {
+      vma = &p->vmas[i];
+      break;
+    }
+  }
+  
+  if(vma == 0)
+    return -1;  // 没有找到对应的 VMA
+  
+  // 简化实现：只支持完全 unmap 或从头/尾部 unmap
+  if(addr == vma->addr && len == vma->len) {
+    // 完全 unmap
+    // 写回页面到文件 (MAP_SHARED)
+    if((vma->flags & MAP_SHARED) && vma->f) {
+      for(uint64 a = vma->addr; a < vma->addr + vma->len; a += PGSIZE) {
+        pte_t *pte = walk(p->pagetable, a, 0);
+        if(pte && (*pte & PTE_V)) {
+          // 写回文件
+          uint64 pa = PTE2PA(*pte);
+          uint64 file_off = vma->offset + (a - vma->addr);
+          elock(vma->f->ep);
+          ewrite(vma->f->ep, 0, pa, file_off, PGSIZE);
+          eunlock(vma->f->ep);
+        }
+      }
+    }
+    
+    // 解除映射并释放物理页
+    for(uint64 a = vma->addr; a < vma->addr + vma->len; a += PGSIZE) {
+      pte_t *pte = walk(p->pagetable, a, 0);
+      if(pte && (*pte & PTE_V)) {
+        uint64 pa = PTE2PA(*pte);
+        kfree((void*)pa);
+        *pte = 0;
+      }
+      // 同时处理内核页表
+      pte = walk(p->kpagetable, a, 0);
+      if(pte && (*pte & PTE_V)) {
+        *pte = 0;
+      }
+    }
+    
+    // 关闭文件
+    if(vma->f) {
+      fileclose(vma->f);
+    }
+    
+    // 释放 VMA
+    vma->valid = 0;
+    return 0;
+  }
+  
+  // 部分 unmap 暂不支持
   return -1;
 }

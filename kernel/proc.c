@@ -9,10 +9,13 @@
 #include "include/kalloc.h"
 #include "include/printf.h"
 #include "include/string.h"
+#include "include/shm.h"
+#include "include/sem.h"
 #include "include/fat32.h"
 #include "include/file.h"
 #include "include/trap.h"
 #include "include/vm.h"
+#include "include/sched.h"
 
 
 struct cpu cpus[NCPU];
@@ -143,6 +146,7 @@ found:
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == NULL){
+    freeproc(p);  // 恢复进程槽状态为 UNUSED
     release(&p->lock);
     return NULL;
   }
@@ -163,6 +167,26 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
+
+  // Stride 调度：初始化调度参数
+  p->tickets = DEFAULT_TICKETS;
+  p->stride = STRIDE_LARGE / DEFAULT_TICKETS;
+  p->pass = 0;  // 新进程从 0 开始 (将在调度时调整)
+  p->runticks = 0;
+  p->schedcount = 0;
+
+  // V2.0.1: 初始化 VMA 数组为空（不继承父进程的 mmap 映射）
+  for(int i = 0; i < MAX_VMA; i++) {
+    p->vmas[i].valid = 0;
+  }
+
+  // V2.1: 初始化信号系统字段
+  p->sig_pending = 0;
+  p->sig_blocked = 0;
+  for(int i = 0; i < NSIG; i++) {
+    p->sig_handlers[i] = SIG_DFL;
+  }
+  p->sig_frame_addr = 0;
 
   return p;
 }
@@ -233,6 +257,8 @@ proc_freepagetable(pagetable_t pagetable, uint64 sz)
 {
   vmunmap(pagetable, TRAMPOLINE, 1, 0);
   vmunmap(pagetable, TRAPFRAME, 1, 0);
+  // Detach any shared memory mappings the process may still hold
+  shmdetach_all(pagetable);
   uvmfree(pagetable, sz);
 }
 
@@ -366,6 +392,11 @@ fork(void)
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
 
+  // Stride 调度：子进程继承父进程调度参数
+  np->tickets = p->tickets;
+  np->stride = p->stride;  // 继承 stride
+  np->pass = p->pass;      // 继承 pass 值，保证公平性
+
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;
 
@@ -422,6 +453,9 @@ exit(int status)
 
   if(p == initproc)
     panic("init exiting");
+
+  // V2.0: 清理信号量等待队列 (防止死锁)
+  sem_cleanup_proc(p);
 
   // Close all open files.
   for(int fd = 0; fd < NOFILE; fd++){
@@ -529,13 +563,61 @@ wait(uint64 addr)
   }
 }
 
+// Wait for a specific child process to exit.
+// pid > 0: wait for the child with this pid
+// pid == -1: wait for any child (same as wait())
+// Returns child pid on success, -1 on error.
+int
+waitpid(int target_pid, uint64 addr, int options)
+{
+  struct proc *np;
+  int havekids, pid;
+  struct proc *p = myproc();
+
+  acquire(&p->lock);
+
+  for(;;){
+    havekids = 0;
+    for(np = proc; np < &proc[NPROC]; np++){
+      if(np->parent == p){
+        acquire(&np->lock);
+        
+        // 如果 target_pid > 0，只匹配特定 pid
+        if(target_pid > 0 && np->pid != target_pid) {
+          release(&np->lock);
+          continue;
+        }
+        
+        havekids = 1;
+        if(np->state == ZOMBIE){
+          pid = np->pid;
+          if(addr != 0 && copyout2(addr, (char *)&np->xstate, sizeof(np->xstate)) < 0) {
+            release(&np->lock);
+            release(&p->lock);
+            return -1;
+          }
+          freeproc(np);
+          release(&np->lock);
+          release(&p->lock);
+          return pid;
+        }
+        release(&np->lock);
+      }
+    }
+
+    // 没有匹配的子进程
+    if(!havekids || p->killed){
+      release(&p->lock);
+      return -1;
+    }
+    
+    sleep(p, &p->lock);
+  }
+}
+
 // Per-CPU process scheduler.
-// Each CPU calls scheduler() after setting itself up.
-// Scheduler never returns.  It loops, doing:
-//  - choose a process to run.
-//  - swtch to start running that process.
-//  - eventually that process transfers control
-//    via swtch back to the scheduler.
+// Stride Scheduling (V2.0.1): 选择 pass 最小的进程运行
+// V2.0.1: 无锁扫描 + 单锁验证，避免死锁和活锁
 void
 scheduler(void)
 {
@@ -545,36 +627,43 @@ scheduler(void)
 
   c->proc = 0;
   for(;;){
-    // Avoid deadlock by ensuring that devices can interrupt.
+    // 允许中断，避免死锁
     intr_on();
-    
-    int found = 0;
-    for(p = proc; p < &proc[NPROC]; p++) {
-      acquire(&p->lock);
-      if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        // printf("[scheduler]found runnable proc with pid: %d\n", p->pid);
-        p->state = RUNNING;
-        c->proc = p;
-        w_satp(MAKE_SATP(p->kpagetable));
-        sfence_vma();
-        swtch(&c->context, &p->context);
-        w_satp(MAKE_SATP(kernel_pagetable));
-        sfence_vma();
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
 
-        found = 1;
+    // Stride 调度：两阶段选择
+    // 阶段1：无锁扫描找到 pass 最小的 RUNNABLE 进程
+    struct proc *minp = 0;
+    uint64 min_pass = ~0ULL;
+    
+    for(p = proc; p < &proc[NPROC]; p++) {
+      if(p->state == RUNNABLE && p->pass < min_pass) {
+        min_pass = p->pass;
+        minp = p;
       }
-      release(&p->lock);
     }
-    if(found == 0) {
-      intr_on();
-      asm volatile("wfi");
+    
+    if(minp == 0)
+      continue;
+    
+    // 阶段2：获取锁并验证状态
+    // 只持有单个锁，避免与 reparent/exit 产生循环等待
+    acquire(&minp->lock);
+    
+    // 验证：确认状态仍是 RUNNABLE
+    // 如果状态改变了（被其他CPU抢走），释放锁继续下一轮
+    if(minp->state == RUNNABLE) {
+      minp->state = RUNNING;
+      minp->schedcount++;
+      minp->pass += minp->stride;
+      c->proc = minp;
+      w_satp(MAKE_SATP(minp->kpagetable));
+      sfence_vma();
+      swtch(&c->context, &minp->context);
+      w_satp(MAKE_SATP(kernel_pagetable));
+      sfence_vma();
+      c->proc = 0;
     }
+    release(&minp->lock);
   }
 }
 
@@ -611,6 +700,7 @@ yield(void)
 {
   struct proc *p = myproc();
   acquire(&p->lock);
+  p->runticks++;  // 记录运行 ticks
   p->state = RUNNABLE;
   sched();
   release(&p->lock);
@@ -726,6 +816,174 @@ kill(int pid)
   return -1;
 }
 
+// V2.1: 发送信号到指定进程
+// 返回 0 成功，-1 失败（进程不存在或信号无效）
+int
+kill_sig(int pid, int sig)
+{
+  struct proc *p;
+
+  // 验证信号范围
+  if(sig < 1 || sig >= NSIG)
+    return -1;
+
+  for(p = proc; p < &proc[NPROC]; p++){
+    acquire(&p->lock);
+    if(p->pid == pid){
+      // 添加信号到待处理位图
+      p->sig_pending |= (1 << sig);
+      
+      // 如果进程在睡眠，唤醒它以处理信号
+      if(p->state == SLEEPING){
+        p->state = RUNNABLE;
+      }
+      release(&p->lock);
+      return 0;
+    }
+    release(&p->lock);
+  }
+  return -1;
+}
+
+// V2.1: 检查并处理当前进程的待处理信号
+// 在返回用户空间前调用 (usertrap/usertrapret)
+void
+check_signals(void)
+{
+  struct proc *p = myproc();
+  
+  if(p->sig_pending == 0)
+    return;
+  
+  // 计算实际可投递的信号 (待处理 & ~阻塞)
+  uint32 deliverable = p->sig_pending & ~p->sig_blocked;
+  if(deliverable == 0)
+    return;
+  
+  // 按信号编号从低到高处理
+  for(int sig = 1; sig < NSIG; sig++){
+    if(!(deliverable & (1 << sig)))
+      continue;
+    
+    // 清除已处理的信号
+    p->sig_pending &= ~(1 << sig);
+    
+    // 获取处理器
+    void (*handler)(int) = p->sig_handlers[sig];
+    
+    // 处理不可捕获的信号
+    if(sig == SIGKILL || sig == SIGSTOP){
+      handler = SIG_DFL;
+    }
+    
+    if(handler == SIG_IGN){
+      // 忽略信号
+      continue;
+    }
+    else if(handler == SIG_DFL){
+      // 默认处理
+      switch(sig){
+        case SIGCHLD:
+        case SIGCONT:
+          // 默认忽略
+          break;
+        case SIGSTOP:
+        case SIGTSTP:
+          // 暂停进程 (暂不实现)
+          break;
+        case SIGKILL:
+        case SIGTERM:
+        case SIGINT:
+        case SIGQUIT:
+        case SIGHUP:
+        case SIGPIPE:
+        case SIGALRM:
+        case SIGUSR1:
+        case SIGUSR2:
+        default:
+          // 默认终止进程
+          p->killed = 1;
+          return;  // 只处理一个致命信号
+      }
+    }
+    else {
+      // V2.1: 用户自定义处理器
+      // 在用户栈上设置信号帧
+      struct sigframe frame;
+      uint64 sp = p->trapframe->sp;
+      
+      printf("[signal] pid=%d delivering sig=%d to handler=%p, epc=%p\n",
+             p->pid, sig, handler, p->trapframe->epc);
+      
+      // 在栈上分配 sigframe 空间 (向下增长，保持对齐)
+      sp -= sizeof(struct sigframe);
+      sp &= ~0xF;  // 16字节对齐
+      
+      // 保存当前寄存器到 sigframe
+      frame.ra = p->trapframe->ra;
+      frame.sp = p->trapframe->sp;  // 保存原始 sp
+      frame.gp = p->trapframe->gp;
+      frame.tp = p->trapframe->tp;
+      frame.t0 = p->trapframe->t0;
+      frame.t1 = p->trapframe->t1;
+      frame.t2 = p->trapframe->t2;
+      frame.s0 = p->trapframe->s0;
+      frame.s1 = p->trapframe->s1;
+      frame.a0 = p->trapframe->a0;
+      frame.a1 = p->trapframe->a1;
+      frame.a2 = p->trapframe->a2;
+      frame.a3 = p->trapframe->a3;
+      frame.a4 = p->trapframe->a4;
+      frame.a5 = p->trapframe->a5;
+      frame.a6 = p->trapframe->a6;
+      frame.a7 = p->trapframe->a7;
+      frame.s2 = p->trapframe->s2;
+      frame.s3 = p->trapframe->s3;
+      frame.s4 = p->trapframe->s4;
+      frame.s5 = p->trapframe->s5;
+      frame.s6 = p->trapframe->s6;
+      frame.s7 = p->trapframe->s7;
+      frame.s8 = p->trapframe->s8;
+      frame.s9 = p->trapframe->s9;
+      frame.s10 = p->trapframe->s10;
+      frame.s11 = p->trapframe->s11;
+      frame.t3 = p->trapframe->t3;
+      frame.t4 = p->trapframe->t4;
+      frame.t5 = p->trapframe->t5;
+      frame.t6 = p->trapframe->t6;
+      frame.epc = p->trapframe->epc;  // 保存返回地址
+      frame.sig_blocked_saved = p->sig_blocked;
+      frame.signo = sig;
+      
+      // 生成 sigreturn trampoline 代码
+      // li a7, SYS_sigreturn (44)
+      // ecall
+      frame.sigreturn_code[0] = 0x02c00893;  // li a7, 44 (SYS_sigreturn)
+      frame.sigreturn_code[1] = 0x00000073;  // ecall
+      
+      // 将 sigframe 复制到用户栈
+      if(copyout(p->pagetable, sp, (char*)&frame, sizeof(frame)) < 0){
+        // 栈溢出，终止进程
+        p->killed = 1;
+        return;
+      }
+      
+      // 保存 sigframe 地址供 sigreturn 使用
+      p->sig_frame_addr = sp;
+      
+      // 修改 trapframe 以调用用户处理器
+      p->trapframe->epc = (uint64)handler;      // 跳转到处理器
+      p->trapframe->sp = sp;                     // 设置新栈指针
+      p->trapframe->a0 = sig;                    // 信号号作为第一个参数
+      // ra 设置为 sigreturn trampoline 地址
+      p->trapframe->ra = sp + __builtin_offsetof(struct sigframe, sigreturn_code);
+      
+      // 返回，只处理一个信号（用户处理器会调用 sigreturn）
+      return;
+    }
+  }
+}
+
 // Copy to either a user address, or kernel address,
 // depending on usr_dst.
 // Returns 0 on success, -1 on error.
@@ -801,4 +1059,3 @@ procnum(void)
 
   return num;
 }
-

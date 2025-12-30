@@ -1,6 +1,5 @@
 // Timer Interrupt handler
 
-
 #include "include/types.h"
 #include "include/param.h"
 #include "include/riscv.h"

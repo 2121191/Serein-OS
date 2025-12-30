@@ -5,6 +5,7 @@
 struct stat;
 struct rtcdate;
 struct sysinfo;
+struct pstat;
 
 // system calls
 int fork(void);
@@ -33,6 +34,34 @@ int remove(char *filename);
 int trace(int mask);
 int sysinfo(struct sysinfo *);
 int rename(char *old, char *new);
+int sem_open(int initial_value);
+int sem_wait(int sem_id);
+int sem_post(int sem_id);
+int sem_close(int sem_id);
+int sem_getvalue(int sem_id, int *value);
+int settickets(int n);
+int getpinfo(struct pstat *);
+int waitpid(int pid, int *status, int options);
+int shmcreate(char *name, uint64 size);
+int shmopen(char *name);
+uint64 shmattach(int shmid);
+int shmdetach(uint64 va, uint64 size);
+int shmunlink(char *name);
+void *mmap(void *addr, uint64 len, int prot, int flags, int fd, uint64 offset);
+int munmap(void *addr, uint64 len);
+int kill2(int pid, int sig);  // V2.1: 发送信号到进程
+int sigaction(int sig, void (*handler)(int));  // V2.1: 设置信号处理器
+int sigreturn(void);  // V2.1: 从信号处理器返回
+
+// V2.1: 信号常量 (与 kernel/include/signal.h 同步)
+#define SIGHUP    1
+#define SIGINT    2
+#define SIGQUIT   3
+#define SIGKILL   9
+#define SIGTERM   15
+#define SIGCHLD   17
+#define SIGUSR1   30
+#define SIGUSR2   31
 
 // ulib.c
 int stat(const char*, struct stat*);

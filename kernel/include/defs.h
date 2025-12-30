@@ -5,6 +5,7 @@ struct file;
 struct inode;
 struct pipe;
 struct proc;
+struct sem;
 struct spinlock;
 struct sleeplock;
 struct stat;
@@ -154,6 +155,16 @@ void            acquiresleep(struct sleeplock*);
 void            releasesleep(struct sleeplock*);
 int             holdingsleep(struct sleeplock*);
 void            initsleeplock(struct sleeplock*, char*);
+
+// sem.c
+void            seminit(void);
+int             semalloc(int);
+struct sem*     semget(int);
+void            semfree(struct sem *);
+void            semwait(struct sem *);
+void            sempost(struct sem *);
+int             semgetvalue(struct sem *, int *);
+void            test_sem(void);
 
 // string.c
 int             memcmp(const void*, const void*, uint);

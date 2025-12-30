@@ -21,7 +21,7 @@
 
 #define FAT32_MAX_FILENAME  255
 #define FAT32_MAX_PATH      260
-#define ENTRY_CACHE_NUM     50
+#define ENTRY_CACHE_NUM     128     // V2.0: Increased from 50 for better multi-process performance
 
 struct dirent {
     char  filename[FAT32_MAX_FILENAME + 1];
@@ -37,6 +37,8 @@ struct dirent {
 
     uint32  cur_clus;
     uint    clus_cnt;
+    uint32  *index;          // V2.0: Sparse cluster index
+    int     index_cnt;       // V2.0: Count of valid entries in index
 
     /* for OS */
     uint8   dev;

@@ -13,6 +13,9 @@
 #include "include/vm.h"
 #include "include/disk.h"
 #include "include/buf.h"
+#include "include/sem.h"
+#include "include/sched.h"
+#include "include/shm.h"
 #include "driver/driver.h"
 
 #ifndef QEMU
@@ -83,6 +86,14 @@ main(unsigned long hartid, unsigned long dtb_pa)
     timerinit();     
     trapinithart();  
     procinit();
+    seminit();        // Initialize semaphore subsystem
+    shminit();        // Initialize shared memory subsystem
+    
+    #ifdef DEBUG
+    test_sem();       // Test semaphore implementation
+    #endif
+    
+    // Stride 调度：确定性算法，无需 PRNG 初始化
     
     // 步骤 5: 使用驱动抽象层初始化 PLIC
     platform->plic->init();

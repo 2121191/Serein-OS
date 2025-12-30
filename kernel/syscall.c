@@ -116,6 +116,24 @@ extern uint64 sys_remove(void);
 extern uint64 sys_trace(void);
 extern uint64 sys_sysinfo(void);
 extern uint64 sys_rename(void);
+extern uint64 sys_sem_open(void);
+extern uint64 sys_sem_wait(void);
+extern uint64 sys_sem_post(void);
+extern uint64 sys_sem_close(void);
+extern uint64 sys_sem_getvalue(void);
+extern uint64 sys_settickets(void);
+extern uint64 sys_getpinfo(void);
+extern uint64 sys_waitpid(void);
+extern uint64 sys_shmcreate(void);
+extern uint64 sys_shmopen(void);
+extern uint64 sys_shmattach(void);
+extern uint64 sys_shmdetach(void);
+extern uint64 sys_shmunlink(void);
+extern uint64 sys_mmap(void);
+extern uint64 sys_munmap(void);
+extern uint64 sys_kill2(void);  // V2.1
+extern uint64 sys_sigaction(void);  // V2.1
+extern uint64 sys_sigreturn(void);  // V2.1
 
 static uint64 (*syscalls[])(void) = {
   [SYS_fork]        sys_fork,
@@ -144,6 +162,24 @@ static uint64 (*syscalls[])(void) = {
   [SYS_trace]       sys_trace,
   [SYS_sysinfo]     sys_sysinfo,
   [SYS_rename]      sys_rename,
+  [SYS_sem_open]    sys_sem_open,
+  [SYS_sem_wait]    sys_sem_wait,
+  [SYS_sem_post]    sys_sem_post,
+  [SYS_sem_close]   sys_sem_close,
+  [SYS_sem_getvalue] sys_sem_getvalue,
+  [SYS_settickets]  sys_settickets,
+  [SYS_getpinfo]    sys_getpinfo,
+  [SYS_waitpid]     sys_waitpid,
+  [SYS_shmcreate]   sys_shmcreate,
+  [SYS_shmopen]     sys_shmopen,
+  [SYS_shmattach]   sys_shmattach,
+  [SYS_shmdetach]   sys_shmdetach,
+  [SYS_shmunlink]   sys_shmunlink,
+  [SYS_mmap]        sys_mmap,
+  [SYS_munmap]      sys_munmap,
+  [SYS_kill2]       sys_kill2,
+  [SYS_sigaction]   sys_sigaction,
+  [SYS_sigreturn]   sys_sigreturn,
 };
 
 static char *sysnames[] = {
@@ -173,6 +209,24 @@ static char *sysnames[] = {
   [SYS_trace]       "trace",
   [SYS_sysinfo]     "sysinfo",
   [SYS_rename]      "rename",
+  [SYS_sem_open]    "sem_open",
+  [SYS_sem_wait]    "sem_wait",
+  [SYS_sem_post]    "sem_post",
+  [SYS_sem_close]   "sem_close",
+  [SYS_sem_getvalue] "sem_getvalue",
+  [SYS_settickets]  "settickets",
+  [SYS_getpinfo]    "getpinfo",
+  [SYS_waitpid]     "waitpid",
+  [SYS_shmcreate]   "shmcreate",
+  [SYS_shmopen]     "shmopen",
+  [SYS_shmattach]   "shmattach",
+  [SYS_shmdetach]   "shmdetach",
+  [SYS_shmunlink]   "shmunlink",
+  [SYS_mmap]        "mmap",
+  [SYS_munmap]      "munmap",
+  [SYS_kill2]       "kill2",
+  [SYS_sigaction]   "sigaction",
+  [SYS_sigreturn]   "sigreturn",
 };
 
 void

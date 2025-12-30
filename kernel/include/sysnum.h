@@ -28,5 +28,23 @@
 #define SYS_readdir     24
 #define SYS_getcwd      25
 #define SYS_rename      26
+#define SYS_sem_open    27
+#define SYS_sem_wait    28
+#define SYS_sem_post    29
+#define SYS_sem_close   30
+#define SYS_sem_getvalue 31
+#define SYS_settickets  32
+#define SYS_getpinfo    33
+#define SYS_waitpid     34
+#define SYS_shmcreate   35
+#define SYS_shmopen     36
+#define SYS_shmattach   37
+#define SYS_shmdetach   38
+#define SYS_shmunlink   39
+#define SYS_mmap        40
+#define SYS_munmap      41
+#define SYS_kill2       42  // V2.1: kill(pid, sig) 带信号参数
+#define SYS_sigaction   43  // V2.1: 设置信号处理器
+#define SYS_sigreturn   44  // V2.1: 从信号处理器返回
 
 #endif

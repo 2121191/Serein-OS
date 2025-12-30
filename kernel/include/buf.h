@@ -12,6 +12,7 @@ struct buf {
   uint sectorno;	// sector number 
   struct sleeplock lock;
   uint refcnt;
+  uint lastuse;   // timestamp for LRU (V2.0 bucket partitioning)
   struct buf *prev;
   struct buf *next;
   uchar data[BSIZE];

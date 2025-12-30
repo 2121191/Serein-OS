@@ -29,10 +29,13 @@ OBJS += \
   $K/sysproc.o \
   $K/bio.o \
   $K/sleeplock.o \
+  $K/sem.o \
+  $K/shm.o \
   $K/file.o \
   $K/pipe.o \
   $K/exec.o \
   $K/sysfile.o \
+  $K/sysshm.o \
   $K/timer.o \
   $K/kernelvec.o \
   $K/disk.o \
@@ -200,6 +203,8 @@ UPROGS=\
 	$U/_mkdir\
 	$U/_xargs\
 	$U/_sleep\
+	$U/_shmtest1\
+	$U/_shmtest2\
 	$U/_find\
 	$U/_rm\
 	$U/_wc\
@@ -210,9 +215,20 @@ UPROGS=\
 	$U/_myprog\
 	$U/_cp\
 	$U/_stat\
+	$U/_semtest\
+	$U/_semtest2\
 	$U/_timer\
 	$U/_head\
 	$U/_tail\
+	$U/_ps\
+	$U/_cowstress\
+	$U/_semstress\
+	$U/_shmstress\
+	$U/_mmaptest\
+	$U/_bigfile\
+	$U/_sigtest\
+	$U/_sigtest2\
+	$U/_cls\
 
 
 	# xiugai12281612
