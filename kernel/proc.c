@@ -196,6 +196,10 @@ found:
   p->euid = 0;
   p->egid = 0;
 
+  // 进程组初始化 (V2.2)
+  // 新进程默认自成一组 (pgid = pid)
+  p->pgid = p->pid;
+
   return p;
 }
 
@@ -410,6 +414,9 @@ fork(void)
   np->gid = p->gid;
   np->euid = p->euid;
   np->egid = p->egid;
+
+  // 进程组：子进程继承父进程 pgid (V2.2)
+  np->pgid = p->pgid;
 
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;
@@ -848,7 +855,8 @@ kill_sig(int pid, int sig)
       p->sig_pending |= (1 << sig);
       
       // 如果进程在睡眠，唤醒它以处理信号
-      if(p->state == SLEEPING){
+      // V2.2: 如果进程已停止 (STOPPED) 且收到 SIGCONT，唤醒它
+      if(p->state == SLEEPING || (p->state == STOPPED && sig == SIGCONT)){
         p->state = RUNNABLE;
       }
       release(&p->lock);
@@ -861,26 +869,45 @@ kill_sig(int pid, int sig)
 
 // V2.1: 检查并处理当前进程的待处理信号
 // 在返回用户空间前调用 (usertrap/usertrapret)
+// V2.1: 检查并处理当前进程的待处理信号
+// 在返回用户空间前调用 (usertrap/usertrapret)
 void
 check_signals(void)
 {
   struct proc *p = myproc();
   
+  // 优化：无锁预检查，避免频繁获取锁
   if(p->sig_pending == 0)
     return;
-  
-  // 计算实际可投递的信号 (待处理 & ~阻塞)
-  uint32 deliverable = p->sig_pending & ~p->sig_blocked;
-  if(deliverable == 0)
-    return;
-  
-  // 按信号编号从低到高处理
-  for(int sig = 1; sig < NSIG; sig++){
-    if(!(deliverable & (1 << sig)))
-      continue;
-    
-    // 清除已处理的信号
+
+  while(1){
+    acquire(&p->lock);
+    uint32 deliverable = p->sig_pending & ~p->sig_blocked;
+    if(deliverable == 0){
+      release(&p->lock);
+      return;
+    }
+
+    // Find lowest set bit
+    int sig = -1;
+    for(int i = 1; i < NSIG; i++){
+      if(deliverable & (1 << i)){
+        sig = i;
+        break;
+      }
+    }
+
+    if(sig == -1){ // Should not happen given deliverable != 0
+      release(&p->lock);
+      return;
+    }
+
+    // Clear the signal bit while holding the lock
     p->sig_pending &= ~(1 << sig);
+    release(&p->lock);
+
+    // Now handle the signal without holding the lock
+    // (except when changing state)
     
     // 获取处理器
     void (*handler)(int) = p->sig_handlers[sig];
@@ -891,11 +918,9 @@ check_signals(void)
     }
     
     if(handler == SIG_IGN){
-      // 忽略信号
       continue;
     }
     else if(handler == SIG_DFL){
-      // 默认处理
       switch(sig){
         case SIGCHLD:
         case SIGCONT:
@@ -903,7 +928,12 @@ check_signals(void)
           break;
         case SIGSTOP:
         case SIGTSTP:
-          // 暂停进程 (暂不实现)
+          // 暂停进程 (V2.2)
+          printf("Process %d stopped by signal %d\n", p->pid, sig);
+          acquire(&p->lock);
+          p->state = STOPPED;
+          sched(); // 放弃 CPU
+          release(&p->lock);
           break;
         case SIGKILL:
         case SIGTERM:
@@ -916,18 +946,18 @@ check_signals(void)
         case SIGUSR2:
         default:
           // 默认终止进程
+          acquire(&p->lock);
           p->killed = 1;
-          return;  // 只处理一个致命信号
+          release(&p->lock);
+          // 即使 killed=1，也继续处理其他信号吗？
+          // 通常 killed 后很快就会在 trap 返回时 exit
+          return;
       }
     }
     else {
       // V2.1: 用户自定义处理器
-      // 在用户栈上设置信号帧
       struct sigframe frame;
       uint64 sp = p->trapframe->sp;
-      
-      printf("[signal] pid=%d delivering sig=%d to handler=%p, epc=%p\n",
-             p->pid, sig, handler, p->trapframe->epc);
       
       // 在栈上分配 sigframe 空间 (向下增长，保持对齐)
       sp -= sizeof(struct sigframe);
@@ -978,7 +1008,10 @@ check_signals(void)
       // 将 sigframe 复制到用户栈
       if(copyout(p->pagetable, sp, (char*)&frame, sizeof(frame)) < 0){
         // 栈溢出，终止进程
+        printf("check_signals: copyout failed, killing pid %d\n", p->pid);
+        acquire(&p->lock);
         p->killed = 1;
+        release(&p->lock);
         return;
       }
       
@@ -1041,7 +1074,8 @@ procdump(void)
   [SLEEPING]  "sleep ",
   [RUNNABLE]  "runble",
   [RUNNING]   "run   ",
-  [ZOMBIE]    "zombie"
+  [ZOMBIE]    "zombie",
+  [STOPPED]   "stop  "
   };
   struct proc *p;
   char *state;

@@ -141,6 +141,8 @@ extern uint64 sys_getuid(void);     // V2.2
 extern uint64 sys_setuid(void);     // V2.2
 extern uint64 sys_getgid(void);     // V2.2
 extern uint64 sys_setgid(void);     // V2.2
+extern uint64 sys_getpgid(void);    // V2.2
+extern uint64 sys_setpgid(void);    // V2.2
 
 static uint64 (*syscalls[])(void) = {
   [SYS_fork]        sys_fork,
@@ -194,6 +196,8 @@ static uint64 (*syscalls[])(void) = {
   [SYS_setuid]      sys_setuid,
   [SYS_getgid]      sys_getgid,
   [SYS_setgid]      sys_setgid,
+  [SYS_getpgid]     sys_getpgid,
+  [SYS_setpgid]     sys_setpgid,
 };
 
 static char *sysnames[] = {
@@ -248,6 +252,8 @@ static char *sysnames[] = {
   [SYS_setuid]      "setuid",
   [SYS_getgid]      "getgid",
   [SYS_setgid]      "setgid",
+  [SYS_getpgid]     "getpgid",
+  [SYS_setpgid]     "setpgid",
 };
 
 void

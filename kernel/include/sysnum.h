@@ -53,5 +53,7 @@
 #define SYS_setuid      49  // V2.2: 设置用户 ID
 #define SYS_getgid      50  // V2.2: 获取组 ID
 #define SYS_setgid      51  // V2.2: 设置组 ID
+#define SYS_getpgid     52  // V2.2: 获取进程组 ID
+#define SYS_setpgid     53  // V2.2: 设置进程组 ID
 
 #endif

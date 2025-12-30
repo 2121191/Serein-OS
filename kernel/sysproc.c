@@ -15,6 +15,7 @@
 #include "include/vm.h"
 
 extern int exec(char *path, char **argv);
+extern struct proc proc[NPROC];
 
 uint64
 sys_exec(void)
@@ -138,6 +139,73 @@ sys_setgid(void)
 
   p->gid = gid;
   return 0;
+}
+
+// V2.2: 进程组管理系统调用
+
+uint64
+sys_getpgid(void)
+{
+  int pid;
+  struct proc *p;
+
+  if(argint(0, &pid) < 0)
+    return -1;
+
+  // pid == 0 表示获取当前进程的 pgid
+  if(pid == 0)
+    return myproc()->pgid;
+
+  // 查找指定进程
+  for(p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if(p->pid == pid && p->state != UNUSED) {
+      int pgid = p->pgid;
+      release(&p->lock);
+      return pgid;
+    }
+    release(&p->lock);
+  }
+
+  return -1;  // 未找到进程
+}
+
+uint64
+sys_setpgid(void)
+{
+  int pid, pgid;
+  struct proc *target;
+  struct proc *cur = myproc();
+
+  if(argint(0, &pid) < 0 || argint(1, &pgid) < 0)
+    return -1;
+
+  // pid == 0 表示当前进程
+  if(pid == 0)
+    pid = cur->pid;
+
+  // pgid == 0 表示使用 pid 作为 pgid
+  if(pgid == 0)
+    pgid = pid;
+
+  // 查找目标进程
+  for(target = proc; target < &proc[NPROC]; target++) {
+    acquire(&target->lock);
+    if(target->pid == pid && target->state != UNUSED) {
+      // 只能修改自己或子进程的 pgid
+      // 简化实现：只允许修改自己
+      if(target != cur && target->parent != cur) {
+        release(&target->lock);
+        return -1;
+      }
+      target->pgid = pgid;
+      release(&target->lock);
+      return 0;
+    }
+    release(&target->lock);
+  }
+
+  return -1;  // 未找到进程
 }
 
 uint64

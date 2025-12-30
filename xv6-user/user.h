@@ -59,6 +59,8 @@ int getuid(void);                          // V2.2
 int setuid(int uid);                       // V2.2
 int getgid(void);                          // V2.2
 int setgid(int gid);                       // V2.2
+int getpgid(int pid);                      // V2.2
+int setpgid(int pid, int pgid);            // V2.2
 
 // V2.1: 信号常量 (与 kernel/include/signal.h 同步)
 #define SIGHUP    1

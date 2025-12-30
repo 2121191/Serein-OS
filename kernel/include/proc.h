@@ -40,7 +40,7 @@ struct cpu {
 
 extern struct cpu cpus[NCPU];
 
-enum procstate { UNUSED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
+enum procstate { UNUSED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE, STOPPED };
 
 // VMA (Virtual Memory Area) for mmap support (V2.0.2)
 #define MAX_VMA 16
@@ -100,6 +100,9 @@ struct proc {
   uint32 gid;                      // 组 ID
   uint32 euid;                     // 有效用户 ID
   uint32 egid;                     // 有效组 ID
+
+  // 进程组 (V2.2)
+  int pgid;                        // 进程组 ID
 };
 
 // 进程统计信息（用于 getpinfo 系统调用）

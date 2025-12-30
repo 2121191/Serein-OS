@@ -133,6 +133,21 @@ consoleintr(int c)
   acquire(&cons.lock);
 
   switch(c){
+  case C('C'):  // Ctrl+C: Send SIGINT to foreground process
+    // 向当前前台进程发送 SIGINT
+    // 简化实现：通过 killed 标志中断
+    {
+      struct proc *p = myproc();
+      if(p) {
+        // 使用信号系统发送 SIGINT (或直接 kill)
+        extern int kill_sig(int pid, int sig);
+        kill_sig(p->pid, 2);  // SIGINT = 2
+        consputc('^');
+        consputc('C');
+        consputc('\n');
+      }
+    }
+    break;
   case C('P'):  // Print process list.
     procdump();
     break;

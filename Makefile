@@ -230,6 +230,7 @@ UPROGS=\
 	$U/_sigtest2\
 	$U/_exttest\
 	$U/_idtest\
+	$U/_pgtest\
 
 
 	# xiugai12281612
