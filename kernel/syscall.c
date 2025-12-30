@@ -131,6 +131,9 @@ extern uint64 sys_shmdetach(void);
 extern uint64 sys_shmunlink(void);
 extern uint64 sys_mmap(void);
 extern uint64 sys_munmap(void);
+extern uint64 sys_kill2(void);  // V2.1
+extern uint64 sys_sigaction(void);  // V2.1
+extern uint64 sys_sigreturn(void);  // V2.1
 
 static uint64 (*syscalls[])(void) = {
   [SYS_fork]        sys_fork,
@@ -174,6 +177,9 @@ static uint64 (*syscalls[])(void) = {
   [SYS_shmunlink]   sys_shmunlink,
   [SYS_mmap]        sys_mmap,
   [SYS_munmap]      sys_munmap,
+  [SYS_kill2]       sys_kill2,
+  [SYS_sigaction]   sys_sigaction,
+  [SYS_sigreturn]   sys_sigreturn,
 };
 
 static char *sysnames[] = {
@@ -218,6 +224,9 @@ static char *sysnames[] = {
   [SYS_shmunlink]   "shmunlink",
   [SYS_mmap]        "mmap",
   [SYS_munmap]      "munmap",
+  [SYS_kill2]       "kill2",
+  [SYS_sigaction]   "sigaction",
+  [SYS_sigreturn]   "sigreturn",
 };
 
 void

@@ -49,6 +49,19 @@ int shmdetach(uint64 va, uint64 size);
 int shmunlink(char *name);
 void *mmap(void *addr, uint64 len, int prot, int flags, int fd, uint64 offset);
 int munmap(void *addr, uint64 len);
+int kill2(int pid, int sig);  // V2.1: 发送信号到进程
+int sigaction(int sig, void (*handler)(int));  // V2.1: 设置信号处理器
+int sigreturn(void);  // V2.1: 从信号处理器返回
+
+// V2.1: 信号常量 (与 kernel/include/signal.h 同步)
+#define SIGHUP    1
+#define SIGINT    2
+#define SIGQUIT   3
+#define SIGKILL   9
+#define SIGTERM   15
+#define SIGCHLD   17
+#define SIGUSR1   30
+#define SIGUSR2   31
 
 // ulib.c
 int stat(const char*, struct stat*);

@@ -114,6 +114,13 @@ usertrap(void)
   if(p->killed)
     exit(-1);
 
+  // V2.1: 返回用户空间前检查并处理信号
+  check_signals();
+  
+  // 信号可能导致进程被杀死
+  if(p->killed)
+    exit(-1);
+
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2)
     yield();

@@ -134,6 +134,114 @@ sys_kill(void)
   return kill(pid);
 }
 
+// V2.1: 发送指定信号到进程
+uint64
+sys_kill2(void)
+{
+  int pid, sig;
+
+  if(argint(0, &pid) < 0 || argint(1, &sig) < 0)
+    return -1;
+  return kill_sig(pid, sig);
+}
+
+// V2.1: 设置信号处理器
+// sigaction(int sig, void (*handler)(int))
+// 返回: 0 成功, -1 失败
+uint64
+sys_sigaction(void)
+{
+  int sig;
+  uint64 handler;
+  struct proc *p = myproc();
+
+  if(argint(0, &sig) < 0 || argaddr(1, &handler) < 0)
+    return -1;
+  
+  printf("[sys_sigaction] pid=%d sig=%d handler=%p\n", p->pid, sig, handler);
+  
+  // 验证信号范围
+  if(sig < 1 || sig >= NSIG)
+    return -1;
+  
+  // SIGKILL 和 SIGSTOP 不可捕获
+  if(sig == SIGKILL || sig == SIGSTOP)
+    return -1;
+  
+  // 设置处理器
+  p->sig_handlers[sig] = (void (*)(int))handler;
+  return 0;
+}
+
+// V2.1: 从信号处理器返回，恢复原始上下文
+uint64
+sys_sigreturn(void)
+{
+  struct proc *p = myproc();
+  struct sigframe frame;
+  
+  // 从保存的地址读取 sigframe
+  uint64 frame_addr = p->sig_frame_addr;
+  printf("[sigreturn] pid=%d frame_addr=%p\n", p->pid, frame_addr);
+  
+  if(frame_addr == 0) {
+    printf("[sigreturn] ERROR: no active frame!\n");
+    return -1;  // 没有活跃的信号帧
+  }
+  
+  if(copyin(p->pagetable, (char*)&frame, frame_addr, sizeof(frame)) < 0) {
+    printf("[sigreturn] ERROR: copyin failed!\n");
+    return -1;
+  }
+  
+  printf("[sigreturn] restoring epc=%p, signo=%d\n", frame.epc, frame.signo);
+  
+  // 恢复寄存器
+  p->trapframe->ra = frame.ra;
+  p->trapframe->sp = frame.sp;
+  p->trapframe->gp = frame.gp;
+  p->trapframe->tp = frame.tp;
+  p->trapframe->t0 = frame.t0;
+  p->trapframe->t1 = frame.t1;
+  p->trapframe->t2 = frame.t2;
+  p->trapframe->s0 = frame.s0;
+  p->trapframe->s1 = frame.s1;
+  p->trapframe->a0 = frame.a0;
+  p->trapframe->a1 = frame.a1;
+  p->trapframe->a2 = frame.a2;
+  p->trapframe->a3 = frame.a3;
+  p->trapframe->a4 = frame.a4;
+  p->trapframe->a5 = frame.a5;
+  p->trapframe->a6 = frame.a6;
+  p->trapframe->a7 = frame.a7;
+  p->trapframe->s2 = frame.s2;
+  p->trapframe->s3 = frame.s3;
+  p->trapframe->s4 = frame.s4;
+  p->trapframe->s5 = frame.s5;
+  p->trapframe->s6 = frame.s6;
+  p->trapframe->s7 = frame.s7;
+  p->trapframe->s8 = frame.s8;
+  p->trapframe->s9 = frame.s9;
+  p->trapframe->s10 = frame.s10;
+  p->trapframe->s11 = frame.s11;
+  p->trapframe->t3 = frame.t3;
+  p->trapframe->t4 = frame.t4;
+  p->trapframe->t5 = frame.t5;
+  p->trapframe->t6 = frame.t6;
+  
+  // 恢复 epc（程序返回地址）
+  p->trapframe->epc = frame.epc;
+  
+  // 恢复信号阻塞掩码
+  p->sig_blocked = frame.sig_blocked_saved;
+  
+  // 清除信号帧地址
+  p->sig_frame_addr = 0;
+  
+  // 返回原始 a0 值
+  return frame.a0;
+}
+
 // return how many clock tick interrupts have occurred
 // since start.
 uint64

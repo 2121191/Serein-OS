@@ -43,5 +43,8 @@
 #define SYS_shmunlink   39
 #define SYS_mmap        40
 #define SYS_munmap      41
+#define SYS_kill2       42  // V2.1: kill(pid, sig) 带信号参数
+#define SYS_sigaction   43  // V2.1: 设置信号处理器
+#define SYS_sigreturn   44  // V2.1: 从信号处理器返回
 
 #endif

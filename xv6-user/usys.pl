@@ -56,3 +56,6 @@ entry("shmdetach");
 entry("shmunlink");
 entry("mmap");
 entry("munmap");
+entry("kill2");
+entry("sigaction");
+entry("sigreturn");

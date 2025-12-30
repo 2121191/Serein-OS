@@ -416,8 +416,9 @@ sys_remove(void)
   return 0;
 }
 
-// Must hold too many locks at a time! It's possible to raise a deadlock.
-// Because this op takes some steps, we can't promise
+// V2.0.1 修复：基于地址的锁排序，防止死锁
+// 规则：总是先锁地址较小的 dirent，后锁地址较大的
+// Because this op takes some steps, we can't promise atomicity
 uint64
 sys_rename(void)
 {
@@ -427,35 +428,48 @@ sys_rename(void)
   }
 
   struct dirent *src = NULL, *dst = NULL, *pdst = NULL;
-  int srclock = 0;
+  int srclock = 0, pdstlock = 0;
   char *name;
   if ((src = ename(old)) == NULL || (pdst = enameparent(new, old)) == NULL
       || (name = formatname(old)) == NULL) {
     goto fail;          // src doesn't exist || dst parent doesn't exist || illegal new name
   }
+  
+  // 检查循环引用：不能将目录移动到其子目录中
   for (struct dirent *ep = pdst; ep != NULL; ep = ep->parent) {
-    if (ep == src) {    // In what universe can we move a directory into its child?
+    if (ep == src) {
       goto fail;
     }
   }
 
+  // V2.0.1 锁排序：基于地址顺序获取锁，防止死锁
+  // 规则：地址小的先锁
   uint off;
-  elock(src);     // must hold child's lock before acquiring parent's, because we do so in other similar cases
-  srclock = 1;
-  elock(pdst);
+  if ((uint64)src < (uint64)pdst) {
+    elock(src);
+    srclock = 1;
+    elock(pdst);
+    pdstlock = 1;
+  } else {
+    elock(pdst);
+    pdstlock = 1;
+    elock(src);
+    srclock = 1;
+  }
+  
   dst = dirlookup(pdst, name, &off);
   if (dst != NULL) {
-    eunlock(pdst);
     if (src == dst) {
       goto fail;
     } else if (src->attribute & dst->attribute & ATTR_DIRECTORY) {
       elock(dst);
-      if (!isdirempty(dst)) {    // it's ok to overwrite an empty dir
+      if (!isdirempty(dst)) {
         eunlock(dst);
         goto fail;
       }
-      elock(pdst);
-    } else {                    // src is not a dir || dst exists and is not an dir
+      // dst 锁持有继续
+    } else {
+      // src is not a dir || dst exists and is not a dir
       goto fail;
     }
   }
@@ -466,17 +480,35 @@ sys_rename(void)
   }
   memmove(src->filename, name, FAT32_MAX_FILENAME);
   emake(pdst, src, off);
-  if (src->parent != pdst) {
+  
+  // 处理 src 的父目录锁
+  struct dirent *psrc = src->parent;
+  if (psrc != pdst) {
+    // 需要锁 psrc，但要保持锁顺序
     eunlock(pdst);
-    elock(src->parent);
+    pdstlock = 0;
+    if (psrc != src) {  // 防止自锁
+      elock(psrc);
+      eremove(src);
+      eunlock(psrc);
+    }
+  } else {
+    // psrc == pdst，已持锁
+    eremove(src);
   }
-  eremove(src);
-  eunlock(src->parent);
-  struct dirent *psrc = src->parent;  // src must not be root, or it won't pass the for-loop test
+  
   src->parent = edup(pdst);
   src->off = off;
   src->valid = 1;
-  eunlock(src);
+  
+  if (srclock) {
+    eunlock(src);
+    srclock = 0;
+  }
+  if (pdstlock) {
+    eunlock(pdst);
+    pdstlock = 0;
+  }
 
   eput(psrc);
   if (dst) {
@@ -490,6 +522,8 @@ sys_rename(void)
 fail:
   if (srclock)
     eunlock(src);
+  if (pdstlock)
+    eunlock(pdst);
   if (dst)
     eput(dst);
   if (pdst)

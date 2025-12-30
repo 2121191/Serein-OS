@@ -154,13 +154,18 @@ krefput(void *pa)
   kfree(pa);
 }
 
-// 查询引用计数
+// 查询引用计数 (V2.0.1 修复：加锁读取)
+// 必须持锁读取，防止 CoW 处理器基于过期值做出错误决策
 int
 krefcnt(void *pa)
 {
   if (!PA_VALID(pa))
     return 0;
   
-  // 读操作，不需要加锁（可接受短暂不一致）
-  return kmem.refcnt[PA2IDX(pa)];
+  // V2.0.1: 加锁确保一致性读取
+  // 避免在 kfree/krefget 并发时读到中间状态
+  acquire(&kmem.lock);
+  int cnt = kmem.refcnt[PA2IDX(pa)];
+  release(&kmem.lock);
+  return cnt;
 }

@@ -8,6 +8,7 @@
 #include "file.h"
 #include "fat32.h"
 #include "trap.h"
+#include "signal.h"
 
 // Saved registers for kernel context switches.
 struct context {
@@ -87,6 +88,12 @@ struct proc {
 
   // mmap support (V2.0.2)
   struct vma vmas[MAX_VMA];     // 虚拟内存区域数组
+
+  // 信号系统 (V2.1)
+  uint32 sig_pending;              // 待处理信号位图 (每位代表一个信号)
+  uint32 sig_blocked;              // 阻塞信号掩码
+  void (*sig_handlers[NSIG])(int); // 信号处理器数组 (SIG_DFL/SIG_IGN/handler)
+  uint64 sig_frame_addr;           // 当前信号帧的用户栈地址 (用于 sigreturn)
 };
 
 // 进程统计信息（用于 getpinfo 系统调用）
@@ -106,6 +113,8 @@ int             growproc(int);
 pagetable_t     proc_pagetable(struct proc *);
 void            proc_freepagetable(pagetable_t, uint64);
 int             kill(int);
+int             kill_sig(int, int);    // V2.1: 发送信号到进程
+void            check_signals(void);   // V2.1: 检查并处理待处理信号
 struct cpu*     mycpu(void);
 struct cpu*     getmycpu(void);
 struct proc*    myproc();

@@ -468,15 +468,34 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
   return 0;
 }
 
+// V2.0.1: 检查地址范围是否在 mmap 区域内
+static int
+in_mmap_region(struct proc *p, uint64 va, uint64 len)
+{
+  for(int i = 0; i < MAX_VMA; i++) {
+    if(p->vmas[i].valid) {
+      uint64 start = p->vmas[i].addr;
+      uint64 end = start + p->vmas[i].len;
+      if(va >= start && va + len <= end) {
+        return 1;
+      }
+    }
+  }
+  return 0;
+}
+
 int
 copyout2(uint64 dstva, char *src, uint64 len)
 {
-  uint64 sz = myproc()->sz;
-  if (dstva + len > sz || dstva >= sz) {
-    return -1;
+  struct proc *p = myproc();
+  uint64 sz = p->sz;
+  // V2.0.1: 允许访问 p->sz 内或 mmap 区域内的地址
+  if ((dstva + len <= sz && dstva < sz) ||
+      in_mmap_region(p, dstva, len)) {
+    memmove((void *)dstva, src, len);
+    return 0;
   }
-  memmove((void *)dstva, src, len);
-  return 0;
+  return -1;
 }
 
 // Copy from user to kernel.
@@ -507,12 +526,15 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 int
 copyin2(char *dst, uint64 srcva, uint64 len)
 {
-  uint64 sz = myproc()->sz;
-  if (srcva + len > sz || srcva >= sz) {
-    return -1;
+  struct proc *p = myproc();
+  uint64 sz = p->sz;
+  // V2.0.1: 允许访问 p->sz 内或 mmap 区域内的地址
+  if ((srcva + len <= sz && srcva < sz) ||
+      in_mmap_region(p, srcva, len)) {
+    memmove(dst, (void *)srcva, len);
+    return 0;
   }
-  memmove(dst, (void *)srcva, len);
-  return 0;
+  return -1;
 }
 
 // Copy a null-terminated string from user to kernel.
