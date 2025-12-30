@@ -188,6 +188,14 @@ found:
   }
   p->sig_frame_addr = 0;
 
+  // 权限系统初始化 (V2.2)
+  // 默认为 root (0)，userinit 会保持这个状态
+  // fork 会覆盖这些值
+  p->uid = 0;
+  p->gid = 0;
+  p->euid = 0;
+  p->egid = 0;
+
   return p;
 }
 
@@ -396,6 +404,12 @@ fork(void)
   np->tickets = p->tickets;
   np->stride = p->stride;  // 继承 stride
   np->pass = p->pass;      // 继承 pass 值，保证公平性
+
+  // 权限系统：子进程继承父进程权限 (V2.2)
+  np->uid = p->uid;
+  np->gid = p->gid;
+  np->euid = p->euid;
+  np->egid = p->egid;
 
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;

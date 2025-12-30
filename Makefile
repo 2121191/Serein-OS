@@ -228,6 +228,8 @@ UPROGS=\
 	$U/_bigfile\
 	$U/_sigtest\
 	$U/_sigtest2\
+	$U/_exttest\
+	$U/_idtest\
 
 
 	# xiugai12281612

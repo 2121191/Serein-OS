@@ -46,5 +46,12 @@
 #define SYS_kill2       42  // V2.1: kill(pid, sig) 带信号参数
 #define SYS_sigaction   43  // V2.1: 设置信号处理器
 #define SYS_sigreturn   44  // V2.1: 从信号处理器返回
+#define SYS_lseek       45  // V2.2: 文件定位
+#define SYS_dup2        46  // V2.2: 复制文件描述符到指定槽
+#define SYS_getppid     47  // V2.2: 获取父进程 PID
+#define SYS_getuid      48  // V2.2: 获取用户 ID
+#define SYS_setuid      49  // V2.2: 设置用户 ID
+#define SYS_getgid      50  // V2.2: 获取组 ID
+#define SYS_setgid      51  // V2.2: 设置组 ID
 
 #endif

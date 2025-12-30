@@ -52,6 +52,13 @@ int munmap(void *addr, uint64 len);
 int kill2(int pid, int sig);  // V2.1: 发送信号到进程
 int sigaction(int sig, void (*handler)(int));  // V2.1: 设置信号处理器
 int sigreturn(void);  // V2.1: 从信号处理器返回
+int lseek(int fd, int offset, int whence); // V2.2
+int dup2(int oldfd, int newfd);            // V2.2
+int getppid(void);                         // V2.2
+int getuid(void);                          // V2.2
+int setuid(int uid);                       // V2.2
+int getgid(void);                          // V2.2
+int setgid(int gid);                       // V2.2
 
 // V2.1: 信号常量 (与 kernel/include/signal.h 同步)
 #define SIGHUP    1

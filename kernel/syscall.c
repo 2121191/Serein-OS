@@ -134,6 +134,13 @@ extern uint64 sys_munmap(void);
 extern uint64 sys_kill2(void);  // V2.1
 extern uint64 sys_sigaction(void);  // V2.1
 extern uint64 sys_sigreturn(void);  // V2.1
+extern uint64 sys_lseek(void);      // V2.2
+extern uint64 sys_dup2(void);       // V2.2
+extern uint64 sys_getppid(void);    // V2.2
+extern uint64 sys_getuid(void);     // V2.2
+extern uint64 sys_setuid(void);     // V2.2
+extern uint64 sys_getgid(void);     // V2.2
+extern uint64 sys_setgid(void);     // V2.2
 
 static uint64 (*syscalls[])(void) = {
   [SYS_fork]        sys_fork,
@@ -180,6 +187,13 @@ static uint64 (*syscalls[])(void) = {
   [SYS_kill2]       sys_kill2,
   [SYS_sigaction]   sys_sigaction,
   [SYS_sigreturn]   sys_sigreturn,
+  [SYS_lseek]       sys_lseek,
+  [SYS_dup2]        sys_dup2,
+  [SYS_getppid]     sys_getppid,
+  [SYS_getuid]      sys_getuid,
+  [SYS_setuid]      sys_setuid,
+  [SYS_getgid]      sys_getgid,
+  [SYS_setgid]      sys_setgid,
 };
 
 static char *sysnames[] = {
@@ -227,6 +241,13 @@ static char *sysnames[] = {
   [SYS_kill2]       "kill2",
   [SYS_sigaction]   "sigaction",
   [SYS_sigreturn]   "sigreturn",
+  [SYS_lseek]       "lseek",
+  [SYS_dup2]        "dup2",
+  [SYS_getppid]     "getppid",
+  [SYS_getuid]      "getuid",
+  [SYS_setuid]      "setuid",
+  [SYS_getgid]      "getgid",
+  [SYS_setgid]      "setgid",
 };
 
 void

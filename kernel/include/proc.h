@@ -94,6 +94,12 @@ struct proc {
   uint32 sig_blocked;              // 阻塞信号掩码
   void (*sig_handlers[NSIG])(int); // 信号处理器数组 (SIG_DFL/SIG_IGN/handler)
   uint64 sig_frame_addr;           // 当前信号帧的用户栈地址 (用于 sigreturn)
+
+  // 权限系统 (V2.2)
+  uint32 uid;                      // 用户 ID
+  uint32 gid;                      // 组 ID
+  uint32 euid;                     // 有效用户 ID
+  uint32 egid;                     // 有效组 ID
 };
 
 // 进程统计信息（用于 getpinfo 系统调用）

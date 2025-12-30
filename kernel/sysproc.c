@@ -75,6 +75,72 @@ sys_getpid(void)
 }
 
 uint64
+sys_getppid(void)
+{
+  struct proc *p = myproc();
+  uint64 ppid;
+  
+  acquire(&p->lock);
+  if(p->parent)
+    ppid = p->parent->pid;
+  else
+    ppid = 0;
+  release(&p->lock);
+  
+  return ppid;
+}
+
+
+
+// V2.2: 权限管理系统调用
+
+uint64
+sys_getuid(void)
+{
+  return myproc()->uid;
+}
+
+uint64
+sys_setuid(void)
+{
+  int uid;
+  struct proc *p = myproc();
+
+  if(argint(0, &uid) < 0 || uid < 0 || uid > 32767)
+    return -1;
+
+  // 只有 root 可以切换到任意用户
+  // 普通用户只能切换到自己 (no-op)
+  if(p->uid != 0 && p->uid != uid)
+    return -1;
+
+  p->uid = uid;
+  return 0;
+}
+
+uint64
+sys_getgid(void)
+{
+  return myproc()->gid;
+}
+
+uint64
+sys_setgid(void)
+{
+  int gid;
+  struct proc *p = myproc();
+
+  if(argint(0, &gid) < 0 || gid < 0 || gid > 32767)
+    return -1;
+
+  if(p->uid != 0 && p->gid != gid)
+    return -1;
+
+  p->gid = gid;
+  return 0;
+}
+
+uint64
 sys_fork(void)
 {
   return fork();

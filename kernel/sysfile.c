@@ -125,6 +125,76 @@ sys_fstat(void)
   return filestat(f, st);
 }
 
+// V2.2: lseek - 文件定位
+// lseek(fd, offset, whence) - SEEK_SET=0, SEEK_CUR=1, SEEK_END=2
+uint64
+sys_lseek(void)
+{
+  struct file *f;
+  int offset, whence;
+
+  if(argfd(0, 0, &f) < 0 || argint(1, &offset) < 0 || argint(2, &whence) < 0)
+    return -1;
+  
+  // 只支持常规文件
+  if(f->type != FD_ENTRY)
+    return -1;
+  
+  int newoff;
+  switch(whence) {
+    case 0:  // SEEK_SET
+      newoff = offset;
+      break;
+    case 1:  // SEEK_CUR
+      newoff = f->off + offset;
+      break;
+    case 2:  // SEEK_END
+      newoff = f->ep->file_size + offset;
+      break;
+    default:
+      return -1;
+  }
+  
+  // 检查边界
+  if(newoff < 0)
+    return -1;
+  
+  f->off = newoff;
+  return newoff;
+}
+
+// V2.2: dup2 - 复制文件描述符到指定槽
+// dup2(oldfd, newfd)
+uint64
+sys_dup2(void)
+{
+  struct file *f;
+  int newfd;
+  struct proc *p = myproc();
+
+  if(argfd(0, 0, &f) < 0 || argint(1, &newfd) < 0)
+    return -1;
+  
+  // 验证 newfd 范围
+  if(newfd < 0 || newfd >= NOFILE)
+    return -1;
+  
+  // 如果 oldfd == newfd，直接返回
+  for(int fd = 0; fd < NOFILE; fd++) {
+    if(p->ofile[fd] == f && fd == newfd)
+      return newfd;
+  }
+  
+  // 如果 newfd 已打开，先关闭
+  if(p->ofile[newfd])
+    fileclose(p->ofile[newfd]);
+  
+  // 复制到 newfd
+  p->ofile[newfd] = f;
+  filedup(f);
+  return newfd;
+}
+
 static struct dirent*
 create(char *path, short type, int mode)
 {
