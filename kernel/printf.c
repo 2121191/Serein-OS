@@ -1,6 +1,8 @@
 //
 // formatted console output -- printf, panic.
 //
+// 本文件以 xv6-k210-main 的 printf.c 为基础，合并学长项目的分级日志系统。
+//
 
 #include <stdarg.h>
 
@@ -149,6 +151,93 @@ printfinit(void)
   pr.locking = 1;   // changed, used to be 1
 }
 
+// ============ 分级日志系统实现（移植自学长项目，做了小幅简化） ============
+// 说明：
+// 1) 通过 LOG_LEVEL 控制输出级别（在 include/printf.h 里设置）
+// 2) LOG_INPUT 内部复用与 printf 相同的格式化输出逻辑，并自动补 '\n'
+
+const char* _FILE_;
+const char* _FUNCTION_; // 目前未在宏中赋值，保留以兼容学长接口
+int _LINE_;
+int _LEVEL_;
+
+static const char* LOG_LEVEL_INPUT(const int level){
+    switch (level)
+    {
+    case LOG_DEBUG:
+        return "DEBUG";
+    case LOG_INF:
+        return "INF";
+    case LOG_WARN:
+        return "WARN";
+    case LOG_ERROR:
+        return "ERROR";
+    default:
+        return "UNKNOWN";
+    }
+}
+
+void LOG_INPUT(const char *fmt, ...)
+{
+  // 仅当日志级别 >= LOG_LEVEL 时输出
+  if(_LEVEL_ < LOG_LEVEL)
+    return;
+
+  // 输出前缀
+  printf("[%s] [%s:%d] ", LOG_LEVEL_INPUT(_LEVEL_), _FILE_, _LINE_);
+
+  va_list ap;
+  int i, c;
+  int locking;
+  char *s;
+
+  locking = pr.locking;
+  if(locking)
+    acquire(&pr.lock);
+
+  if (fmt == 0)
+    panic("null fmt");
+
+  va_start(ap, fmt);
+  for(i = 0; (c = fmt[i] & 0xff) != 0; i++){
+    if(c != '%'){
+      consputc(c);
+      continue;
+    }
+    c = fmt[++i] & 0xff;
+    if(c == 0)
+      break;
+    switch(c){
+    case 'd':
+      printint(va_arg(ap, int), 10, 1);
+      break;
+    case 'x':
+      printint(va_arg(ap, int), 16, 1);
+      break;
+    case 'p':
+      printptr(va_arg(ap, uint64));
+      break;
+    case 's':
+      if((s = va_arg(ap, char*)) == 0)
+        s = "(null)";
+      for(; *s; s++)
+        consputc(*s);
+      break;
+    case '%':
+      consputc('%');
+      break;
+    default:
+      consputc('%');
+      consputc(c);
+      break;
+    }
+  }
+  consputc('\n');
+
+  if(locking)
+    release(&pr.lock);
+}
+
 #ifdef QEMU
 void print_logo() {
     printf("  (`-.            (`-.                            .-')       ('-.    _   .-')\n");
@@ -173,4 +262,4 @@ void print_logo() {
     printf("`--'   '--'    `-'     `----'            `--' '--' `------'  `--'   `---''\n");
 }
 #endif
-  
+

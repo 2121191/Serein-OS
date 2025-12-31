@@ -70,6 +70,9 @@ main(unsigned long hartid, unsigned long dtb_pa)
     // 步骤 2: 控制台和打印
     consoleinit();
     printfinit();
+
+    __INF("kernel log enabled: hart=%d", hartid);
+
     print_logo();
     
     // 步骤 3: 使用驱动抽象层初始化 UART 中断

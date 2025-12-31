@@ -235,7 +235,7 @@ UPROGS=\
 	$U/_pgtest\
 	$U/_testdev\
 	$U/_cls\
-
+	$U/_logtest\
 
 	# xiugai12281612
 	# $U/_forktest\
