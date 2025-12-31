@@ -58,5 +58,6 @@
 #define SYS_tcgetpgrp   54  // V2.2C: 获取 TTY 前台进程组
 #define SYS_tcsetpgrp   55  // V2.2C: 设置 TTY 前台进程组
 #define SYS_pipe2       56  // V3.0 (Task 12)
+#define SYS_mincore     57  // V3.1: 查询页面是否驻留在物理内存
 
 #endif

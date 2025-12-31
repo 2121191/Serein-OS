@@ -71,3 +71,4 @@ entry("setpgid");
 entry("tcgetpgrp");
 entry("tcsetpgrp");
 entry("pipe2");
+entry("mincore");

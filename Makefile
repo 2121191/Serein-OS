@@ -237,6 +237,9 @@ UPROGS=\
 	$U/_testdev\
 	$U/_cls\
 	$U/_nbtest\
+	$U/_kallocstat\
+	$U/_mincore_test\
+	$U/_vmstat\
 
 
 	# xiugai12281612

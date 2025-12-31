@@ -13,6 +13,7 @@
 #include "include/sem.h"
 #include "include/sched.h"
 #include "include/vm.h"
+#include "include/vm.h"
 
 extern int exec(char *path, char **argv);
 extern struct proc proc[NPROC];
@@ -594,4 +595,73 @@ sys_waitpid(void)
     return -1;
   
   return waitpid(pid, addr, options);
+}
+
+// V3.1: 查询页面是否驻留在物理内存
+// int mincore(void *addr, size_t length, unsigned char *vec);
+// 返回: 0 成功, -1 失败
+uint64
+sys_mincore(void)
+{
+  uint64 addr;
+  uint64 length;
+  uint64 vec;
+  struct proc *p = myproc();
+  
+  // 获取参数
+  if(argaddr(0, &addr) < 0 || argaddr(1, &length) < 0 || argaddr(2, &vec) < 0)
+    return -1;
+    
+  // 检查地址对齐和长度是否有效
+  if(addr % PGSIZE != 0 || length == 0)
+    return -1;
+    
+  // 计算需要的字节数 (每个页面对应1位，向上取整)
+  uint64 npages = (length + PGSIZE - 1) / PGSIZE;
+  uint64 vec_size = (npages + 7) / 8;  // 位图大小(字节)
+  
+  // 结果缓冲区（内核临时 buffer）
+  // vec_size 最多是 (npages+7)/8，通常远小于一页。
+  char *vec_buf = kalloc();
+  if(vec_buf == 0)
+    return -1;
+  memset(vec_buf, 0, PGSIZE);
+  
+  pte_t *pte;
+  uint64 a;
+  int i;
+  
+  // 基本范围检查（避免 addr+length 溢出）
+  if(addr + length < addr){
+    kfree(vec_buf);
+    return -1;
+  }
+
+  // 遍历所有页面（按 npages 遍历更稳妥）
+  for(a = addr, i = 0; i < npages; a += PGSIZE, i++) {
+    // 检查地址是否在用户空间范围内
+    if(a >= p->sz)
+      break;
+      
+    // 获取页表项
+    pte = walk(p->pagetable, a, 0);
+    if(pte == 0 || (*pte & PTE_V) == 0) {
+      // 页面无效，继续下一个
+      continue;
+    }
+    
+    // 该工程的 PTE flag 里没有实现 RISC-V 的 Accessed(PTE_A) 位，
+    // 因此这里采用“是否已映射且有效(PTE_V)”作为是否驻留的判断。
+    // 这等价于：只要页表项存在且有效，就认为该页当前在物理内存中。
+    vec_buf[i/8] |= (1 << (i % 8));
+  }
+  
+  // 将结果复制回用户空间
+  if(copyout2(vec, vec_buf, vec_size) < 0) {
+    kfree(vec_buf);
+    return -1;
+  }
+  
+  kfree(vec_buf);
+  return 0;
 }

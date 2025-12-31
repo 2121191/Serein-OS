@@ -146,6 +146,7 @@ extern uint64 sys_setpgid(void);    // V2.2
 extern uint64 sys_tcgetpgrp(void);  // V2.2C
 extern uint64 sys_tcsetpgrp(void);  // V2.2C
 extern uint64 sys_pipe2(void);      // V3.0 (Task 12)
+extern uint64 sys_mincore(void);     // V3.1
 
 static uint64 (*syscalls[])(void) = {
   [SYS_fork]        sys_fork,
@@ -204,6 +205,7 @@ static uint64 (*syscalls[])(void) = {
   [SYS_tcgetpgrp]   sys_tcgetpgrp,
   [SYS_tcsetpgrp]   sys_tcsetpgrp,
   [SYS_pipe2]       sys_pipe2,
+  [SYS_mincore]     sys_mincore,
 };
 
 static char *sysnames[] = {
@@ -260,6 +262,7 @@ static char *sysnames[] = {
   [SYS_setgid]      "setgid",
   [SYS_getpgid]     "getpgid",
   [SYS_setpgid]     "setpgid",
+  [SYS_mincore]     "mincore",
 };
 
 void
@@ -303,6 +306,12 @@ sys_sysinfo(void)
   struct sysinfo info;
   info.freemem = freemem_amount();
   info.nproc = procnum();
+  extern uint ticks;
+  info.uptime = ticks;
+  info.cow_pages = kcow_pages();
+  info.shm_pages = kshm_pages();
+  info.mmap_pages = kmmap_pages();
+  kalloc_stats_copyout(&info.kalloc_stats);
 
   // if (copyout(p->pagetable, addr, (char *)&info, sizeof(info)) < 0) {
   if (copyout2(addr, (char *)&info, sizeof(info)) < 0) {
