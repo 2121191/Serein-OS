@@ -61,6 +61,9 @@ int getgid(void);                          // V2.2
 int setgid(int gid);                       // V2.2
 int getpgid(int pid);                      // V2.2
 int setpgid(int pid, int pgid);            // V2.2
+int tcgetpgrp(void);                       // V2.2C
+int tcsetpgrp(int pgid);                   // V2.2C
+int pipe2(int fd[2], int flags);           // V3.0 (Task 12)
 
 // V2.1: 信号常量 (与 kernel/include/signal.h 同步)
 #define SIGHUP    1

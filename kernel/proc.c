@@ -56,6 +56,10 @@ procinit(void)
 {
   struct proc *p;
   
+
+  extern void pidhash_init(void);  // V3.0
+  pidhash_init();
+
   initlock(&pid_lock, "nextpid");
   for(p = proc; p < &proc[NPROC]; p++) {
       initlock(&p->lock, "proc");
@@ -200,6 +204,10 @@ found:
   // 新进程默认自成一组 (pgid = pid)
   p->pgid = p->pid;
 
+  // PID Hash (V3.0): 插入哈希表
+  extern void pidhash_insert(struct proc *p);
+  pidhash_insert(p);
+
   return p;
 }
 
@@ -226,6 +234,11 @@ freeproc(struct proc *p)
   p->chan = 0;
   p->killed = 0;
   p->xstate = 0;
+  
+  // PID Hash (V3.0): 从哈希表移除
+  extern void pidhash_remove(struct proc *p);
+  pidhash_remove(p);
+
   p->state = UNUSED;
 }
 
@@ -819,30 +832,59 @@ wakeup1(struct proc *p)
 int
 kill(int pid)
 {
+  extern struct proc* pidhash_lookup(int pid);
   struct proc *p;
 
-  for(p = proc; p < &proc[NPROC]; p++){
-    acquire(&p->lock);
-    if(p->pid == pid){
-      p->killed = 1;
-      if(p->state == SLEEPING){
-        // Wake process from sleep().
-        p->state = RUNNABLE;
-      }
-      release(&p->lock);
-      return 0;
+  if((p = pidhash_lookup(pid)) != 0){
+    // pidhash_lookup 返回时已持有 p->lock
+    p->killed = 1;
+    if(p->state == SLEEPING){
+      // Wake process from sleep().
+      p->state = RUNNABLE;
     }
     release(&p->lock);
+    return 0;
   }
   return -1;
 }
 
 // V2.1: 发送信号到指定进程
 // 返回 0 成功，-1 失败（进程不存在或信号无效）
+// V2.1: 发送信号到指定进程
+// 返回 0 成功，-1 失败（进程不存在或信号无效）
 int
 kill_sig(int pid, int sig)
 {
+  extern struct proc* pidhash_lookup(int pid);
   struct proc *p;
+
+  // 验证信号范围
+  if(sig < 1 || sig >= NSIG)
+    return -1;
+
+  if((p = pidhash_lookup(pid)) != 0){
+    // pidhash_lookup 返回时已持有 p->lock
+    // 添加信号到待处理位图
+    p->sig_pending |= (1 << sig);
+      
+    // 如果进程在睡眠，唤醒它以处理信号
+    // V2.2: 如果进程已停止 (STOPPED) 且收到 SIGCONT，唤醒它
+    if(p->state == SLEEPING || (p->state == STOPPED && sig == SIGCONT)){
+      p->state = RUNNABLE;
+    }
+    release(&p->lock);
+    return 0;
+  }
+  return -1;
+}
+
+// V2.2C: 向进程组内所有进程发送信号
+// 返回 0 找到至少一个进程，-1 无匹配进程
+int
+kill_pg(int pgid, int sig)
+{
+  struct proc *p;
+  int found = 0;
 
   // 验证信号范围
   if(sig < 1 || sig >= NSIG)
@@ -850,21 +892,19 @@ kill_sig(int pid, int sig)
 
   for(p = proc; p < &proc[NPROC]; p++){
     acquire(&p->lock);
-    if(p->pid == pid){
+    if(p->pgid == pgid && p->state != UNUSED && p->state != ZOMBIE){
       // 添加信号到待处理位图
       p->sig_pending |= (1 << sig);
       
-      // 如果进程在睡眠，唤醒它以处理信号
-      // V2.2: 如果进程已停止 (STOPPED) 且收到 SIGCONT，唤醒它
+      // 唤醒睡眠/停止的进程
       if(p->state == SLEEPING || (p->state == STOPPED && sig == SIGCONT)){
         p->state = RUNNABLE;
       }
-      release(&p->lock);
-      return 0;
+      found = 1;
     }
     release(&p->lock);
   }
-  return -1;
+  return found ? 0 : -1;
 }
 
 // V2.1: 检查并处理当前进程的待处理信号

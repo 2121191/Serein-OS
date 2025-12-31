@@ -45,6 +45,10 @@ struct {
   uint e;  // Edit index
 } cons;
 
+// V2.2C: TTY 前台进程组 ID
+// Shell 应在启动前台命令时调用 tcsetpgrp 设置此值
+int tty_fg_pgid = 0;
+
 //
 // user write()s to the console go here.
 //
@@ -133,18 +137,23 @@ consoleintr(int c)
   acquire(&cons.lock);
 
   switch(c){
-  case C('C'):  // Ctrl+C: Send SIGINT to foreground process
-    // 向当前前台进程发送 SIGINT
-    // 简化实现：通过 killed 标志中断
+  case C('C'):  // Ctrl+C: Send SIGINT to foreground process group
     {
-      struct proc *p = myproc();
-      if(p) {
-        // 使用信号系统发送 SIGINT (或直接 kill)
-        extern int kill_sig(int pid, int sig);
-        kill_sig(p->pid, 2);  // SIGINT = 2
-        consputc('^');
-        consputc('C');
-        consputc('\n');
+      extern int kill_pg(int pgid, int sig);
+      consputc('^');
+      consputc('C');
+      consputc('\n');
+      
+      // V2.2C: 向前台进程组发送 SIGINT
+      if(tty_fg_pgid > 0) {
+        kill_pg(tty_fg_pgid, 2);  // SIGINT = 2
+      } else {
+        // Fallback: 向当前进程发送信号
+        struct proc *p = myproc();
+        if(p) {
+          extern int kill_sig(int pid, int sig);
+          kill_sig(p->pid, 2);
+        }
       }
     }
     break;

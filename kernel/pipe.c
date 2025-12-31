@@ -65,7 +65,7 @@ pipeclose(struct pipe *pi, int writable)
 }
 
 int
-pipewrite(struct pipe *pi, uint64 addr, int n)
+pipewrite(struct pipe *pi, uint64 addr, int n, int nonblocking)
 {
   int i;
   char ch;
@@ -77,6 +77,11 @@ pipewrite(struct pipe *pi, uint64 addr, int n)
       if(pi->readopen == 0 || pr->killed){
         release(&pi->lock);
         return -1;
+      }
+      // V3.0 (Task 12): 非阻塞写
+      if(nonblocking){
+        release(&pi->lock);
+        return -1; // EAGAIN
       }
       wakeup(&pi->nread);
       sleep(&pi->nwrite, &pi->lock);
@@ -92,7 +97,7 @@ pipewrite(struct pipe *pi, uint64 addr, int n)
 }
 
 int
-piperead(struct pipe *pi, uint64 addr, int n)
+piperead(struct pipe *pi, uint64 addr, int n, int nonblocking)
 {
   int i;
   struct proc *pr = myproc();
@@ -103,6 +108,11 @@ piperead(struct pipe *pi, uint64 addr, int n)
     if(pr->killed){
       release(&pi->lock);
       return -1;
+    }
+    // V3.0 (Task 12): 非阻塞读
+    if(nonblocking){
+      release(&pi->lock);
+      return -1; // EAGAIN
     }
     sleep(&pi->nread, &pi->lock); //DOC: piperead-sleep
   }

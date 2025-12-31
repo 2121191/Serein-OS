@@ -10,6 +10,7 @@ struct file {
   struct dirent *ep;
   uint off;          // FD_ENTRY
   short major;       // FD_DEVICE
+  uint flags;        // V3.0 (Task 12): O_NONBLOCK etc.
 };
 
 // #define major(dev)  ((dev) >> 16 & 0xFFFF)

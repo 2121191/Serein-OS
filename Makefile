@@ -43,7 +43,8 @@ OBJS += \
   $K/plic.o \
   $K/console.o \
   $K/null.o \
-  $K/zero.o
+  $K/zero.o \
+  $K/pid_hash.o
 
 ifeq ($(platform), k210)
 OBJS += \
@@ -235,6 +236,7 @@ UPROGS=\
 	$U/_pgtest\
 	$U/_testdev\
 	$U/_cls\
+	$U/_nbtest\
 
 
 	# xiugai12281612

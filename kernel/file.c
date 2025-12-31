@@ -11,6 +11,7 @@
 #include "include/fat32.h"
 #include "include/file.h"
 #include "include/pipe.h"
+#include "include/fcntl.h"
 #include "include/stat.h"
 #include "include/proc.h"
 #include "include/printf.h"
@@ -125,7 +126,7 @@ fileread(struct file *f, uint64 addr, int n)
 
   switch (f->type) {
     case FD_PIPE:
-        r = piperead(f->pipe, addr, n);
+        r = piperead(f->pipe, addr, n, f->flags & O_NONBLOCK);
         break;
     case FD_DEVICE:
         if(f->major < 0 || f->major >= NDEV || !devsw[f->major].read)
@@ -156,7 +157,7 @@ filewrite(struct file *f, uint64 addr, int n)
     return -1;
 
   if(f->type == FD_PIPE){
-    ret = pipewrite(f->pipe, addr, n);
+    ret = pipewrite(f->pipe, addr, n, f->flags & O_NONBLOCK);
   } else if(f->type == FD_DEVICE){
     if(f->major < 0 || f->major >= NDEV || !devsw[f->major].write)
       return -1;

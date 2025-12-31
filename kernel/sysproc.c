@@ -208,6 +208,29 @@ sys_setpgid(void)
   return -1;  // 未找到进程
 }
 
+// V2.2C: 获取 TTY 前台进程组
+extern int tty_fg_pgid;
+
+uint64
+sys_tcgetpgrp(void)
+{
+  return tty_fg_pgid;
+}
+
+// V2.2C: 设置 TTY 前台进程组
+uint64
+sys_tcsetpgrp(void)
+{
+  int pgid;
+  if(argint(0, &pgid) < 0)
+    return -1;
+  
+  // 简化实现：允许任何进程设置前台进程组
+  // 完整实现应检查调用者是否是控制终端的会话领导
+  tty_fg_pgid = pgid;
+  return 0;
+}
+
 uint64
 sys_fork(void)
 {

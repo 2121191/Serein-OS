@@ -311,6 +311,7 @@ sys_open(void)
   f->ep = ep;
   f->readable = !(omode & O_WRONLY);
   f->writable = (omode & O_WRONLY) || (omode & O_RDWR);
+  f->flags = omode;  // V3.0 (Task 12)
 
   eunlock(ep);
 
@@ -365,6 +366,9 @@ sys_pipe(void)
     return -1;
   if(pipealloc(&rf, &wf) < 0)
     return -1;
+  // V3.0 (Task 12): 显式初始化 flags 为 0，避免垃圾值被误识别为 O_NONBLOCK
+  rf->flags = 0;
+  wf->flags = 0;
   fd0 = -1;
   if((fd0 = fdalloc(rf)) < 0 || (fd1 = fdalloc(wf)) < 0){
     if(fd0 >= 0)
@@ -375,6 +379,44 @@ sys_pipe(void)
   }
   // if(copyout(p->pagetable, fdarray, (char*)&fd0, sizeof(fd0)) < 0 ||
   //    copyout(p->pagetable, fdarray+sizeof(fd0), (char *)&fd1, sizeof(fd1)) < 0){
+  if(copyout2(fdarray, (char*)&fd0, sizeof(fd0)) < 0 ||
+     copyout2(fdarray+sizeof(fd0), (char *)&fd1, sizeof(fd1)) < 0){
+    p->ofile[fd0] = 0;
+    p->ofile[fd1] = 0;
+    fileclose(rf);
+    fileclose(wf);
+    return -1;
+  }
+  return 0;
+}
+
+// V3.0 (Task 12): pipe2(int pipefd[2], int flags)
+uint64
+sys_pipe2(void)
+{
+  uint64 fdarray; // user pointer to array of two integers
+  int flags;
+  struct file *rf, *wf;
+  int fd0, fd1;
+  struct proc *p = myproc();
+
+  if(argaddr(0, &fdarray) < 0 || argint(1, &flags) < 0)
+    return -1;
+  if(pipealloc(&rf, &wf) < 0)
+    return -1;
+  
+  // Apply flags
+  rf->flags = flags;
+  wf->flags = flags;
+
+  fd0 = -1;
+  if((fd0 = fdalloc(rf)) < 0 || (fd1 = fdalloc(wf)) < 0){
+    if(fd0 >= 0)
+      p->ofile[fd0] = 0;
+    fileclose(rf);
+    fileclose(wf);
+    return -1;
+  }
   if(copyout2(fdarray, (char*)&fd0, sizeof(fd0)) < 0 ||
      copyout2(fdarray+sizeof(fd0), (char *)&fd1, sizeof(fd1)) < 0){
     p->ofile[fd0] = 0;

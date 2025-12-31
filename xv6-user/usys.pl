@@ -68,3 +68,6 @@ entry("getgid");
 entry("setgid");
 entry("getpgid");
 entry("setpgid");
+entry("tcgetpgrp");
+entry("tcsetpgrp");
+entry("pipe2");

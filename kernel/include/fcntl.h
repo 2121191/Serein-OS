@@ -4,6 +4,7 @@
 #define O_APPEND  0x004
 #define O_CREATE  0x200
 #define O_TRUNC   0x400
+#define O_NONBLOCK 0x800  // V3.0 (Task 12)
 
 // mmap protection flags (V2.0.2)
 #define PROT_NONE   0x0

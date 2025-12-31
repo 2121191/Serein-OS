@@ -105,6 +105,9 @@ struct proc {
 
   // 进程组 (V2.2)
   int pgid;                        // 进程组 ID
+
+  // PID 哈希表 (V3.0)
+  struct proc *hash_next;          // 哈希链表
 };
 
 // 进程统计信息（用于 getpinfo 系统调用）

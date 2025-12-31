@@ -143,6 +143,9 @@ extern uint64 sys_getgid(void);     // V2.2
 extern uint64 sys_setgid(void);     // V2.2
 extern uint64 sys_getpgid(void);    // V2.2
 extern uint64 sys_setpgid(void);    // V2.2
+extern uint64 sys_tcgetpgrp(void);  // V2.2C
+extern uint64 sys_tcsetpgrp(void);  // V2.2C
+extern uint64 sys_pipe2(void);      // V3.0 (Task 12)
 
 static uint64 (*syscalls[])(void) = {
   [SYS_fork]        sys_fork,
@@ -198,6 +201,9 @@ static uint64 (*syscalls[])(void) = {
   [SYS_setgid]      sys_setgid,
   [SYS_getpgid]     sys_getpgid,
   [SYS_setpgid]     sys_setpgid,
+  [SYS_tcgetpgrp]   sys_tcgetpgrp,
+  [SYS_tcsetpgrp]   sys_tcsetpgrp,
+  [SYS_pipe2]       sys_pipe2,
 };
 
 static char *sysnames[] = {
