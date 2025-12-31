@@ -236,6 +236,7 @@ UPROGS=\
 	$U/_testdev\
 	$U/_cls\
 	$U/_logtest\
+	$U/_consoletest
 
 	# xiugai12281612
 	# $U/_forktest\

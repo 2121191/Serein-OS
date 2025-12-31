@@ -11,6 +11,7 @@
 #include "include/vm.h"
 #include "include/string.h"
 #include "include/printf.h"
+extern uint64 console_dropped_chars;
 
 // Fetch the uint64 at addr from the current process.
 int
@@ -297,6 +298,7 @@ sys_sysinfo(void)
   struct sysinfo info;
   info.freemem = freemem_amount();
   info.nproc = procnum();
+  info.dropped = (uint)console_dropped_chars; 
 
   // if (copyout(p->pagetable, addr, (char *)&info, sizeof(info)) < 0) {
   if (copyout2(addr, (char *)&info, sizeof(info)) < 0) {
