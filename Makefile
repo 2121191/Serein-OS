@@ -243,6 +243,8 @@ UPROGS=\
 	$U/_alarmtest\
 	$U/_polltest\
 	$U/_fcntltest\
+	$U/_chmodtest\
+	$U/_threadtest\
 
 
 	# xiugai12281612

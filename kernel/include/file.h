@@ -11,6 +11,8 @@ struct file {
   uint off;          // FD_ENTRY
   short major;       // FD_DEVICE
   uint flags;        // V3.0 (Task 12): O_NONBLOCK etc.
+  uint16 owner_uid;  // V3.0: Owner UID for permission checking
+  uint16 file_mode;  // V3.0: Permission mode (default 0644)
 };
 
 // V3.0: Per-process fd flags stored in proc->fd_flags[NOFILE]

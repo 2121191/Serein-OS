@@ -93,6 +93,27 @@ int fcntl(int fd, int cmd, int arg);
 #define FD_CLOEXEC  1
 #define O_CLOEXEC   0x80000
 
+// V3.0: chmod/fchmod
+int chmod(const char *path, int mode);
+int fchmod(int fd, int mode);
+
+// Note: Permission bits (S_IRUSR, etc.) are defined in stat.h
+
+// V3.0: POSIX threads (clone/futex)
+int clone(int flags, void *stack);
+int futex(int *addr, int op, int val);
+void exit_group(int status);
+
+// Clone flags
+#define CLONE_VM      0x00000100
+#define CLONE_FS      0x00000200
+#define CLONE_FILES   0x00000400
+#define CLONE_THREAD  0x00010000
+
+// Futex operations
+#define FUTEX_WAIT    0
+#define FUTEX_WAKE    1
+
 // V2.1: 信号常量 (与 kernel/include/signal.h 同步)
 #define SIGHUP    1
 #define SIGINT    2

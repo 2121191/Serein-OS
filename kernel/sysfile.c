@@ -1078,3 +1078,55 @@ sys_fcntl(void)
       return -1;  // 不支持的命令
   }
 }
+
+// V3.0: chmod() - 更改文件权限
+// 由于 FAT32 不支持持久化权限，这是一个占位实现
+uint64
+sys_chmod(void)
+{
+  char path[FAT32_MAX_PATH];
+  int mode;
+  struct dirent *ep;
+  struct proc *p = myproc();
+  
+  if(argstr(0, path, FAT32_MAX_PATH) < 0 || argint(1, &mode) < 0)
+    return -1;
+  
+  // 查找文件
+  if((ep = ename(path)) == NULL)
+    return -1;
+  
+  // 权限检查: 只有 root 或文件所有者可以更改权限
+  // 由于 FAT32 不存储所有者，只允许 root
+  if(p->uid != 0) {
+    eput(ep);
+    return -1;  // EPERM
+  }
+  
+  // FAT32 不支持持久化权限，成功返回 0 (占位实现)
+  eput(ep);
+  return 0;
+}
+
+// V3.0: fchmod() - 更改文件描述符的权限
+uint64
+sys_fchmod(void)
+{
+  int fd, mode;
+  struct file *f;
+  struct proc *p = myproc();
+  
+  if(argint(0, &fd) < 0 || argint(1, &mode) < 0)
+    return -1;
+  
+  if(fd < 0 || fd >= NOFILE || (f = p->ofile[fd]) == 0)
+    return -1;
+  
+  // 权限检查: 只有 root 或文件所有者可以更改
+  if(p->uid != 0 && f->owner_uid != p->uid)
+    return -1;  // EPERM
+  
+  // 更新内存中的权限 (不持久化)
+  f->file_mode = mode & 0777;
+  return 0;
+}

@@ -717,3 +717,97 @@ sys_alarm(void)
   
   return remaining;
 }
+
+// V3.0: clone() - 创建线程/进程
+// 简化实现：基于 fork，支持部分 clone 标志
+uint64
+sys_clone(void)
+{
+  int flags;
+  uint64 stack;
+  
+  if(argint(0, &flags) < 0 || argaddr(1, &stack) < 0)
+    return -1;
+  
+  struct proc *p = myproc();
+  
+  // 调用 fork 创建新进程
+  int pid = fork();
+  if(pid < 0)
+    return -1;
+  
+  if(pid == 0) {
+    // 子进程/线程
+    struct proc *np = myproc();
+    
+    // 如果指定了新栈，设置 sp
+    if(stack != 0) {
+      np->trapframe->sp = stack;
+    }
+    
+    // 标记为线程
+    if(flags & CLONE_THREAD) {
+      np->is_thread = 1;
+      np->thread_group = p;
+    }
+    
+    // 注意: CLONE_VM 需要更复杂的实现 (共享页表)
+    // 当前简化版本不支持真正的共享内存
+    // 完整实现需要修改 fork() 核心逻辑
+  }
+  
+  return pid;
+}
+
+// V3.0: futex() - 快速用户空间互斥锁
+// 简化实现：使用 sleep/wakeup
+uint64
+sys_futex(void)
+{
+  uint64 addr;
+  int op, val;
+  
+  if(argaddr(0, &addr) < 0 || argint(1, &op) < 0 || argint(2, &val) < 0)
+    return -1;
+  
+  struct proc *p = myproc();
+  
+  switch(op) {
+    case FUTEX_WAIT: {
+      // 检查内存值是否等于 val
+      int current;
+      if(copyin(p->pagetable, (char*)&current, addr, sizeof(int)) < 0)
+        return -1;
+      
+      if(current != val)
+        return -1;  // 值已改变，不需要等待
+      
+      // 睡眠等待
+      sleep((void*)addr, 0);
+      return 0;
+    }
+    
+    case FUTEX_WAKE: {
+      // 唤醒等待在该地址上的进程
+      wakeup((void*)addr);
+      return 0;
+    }
+    
+    default:
+      return -1;
+  }
+}
+
+// V3.0: exit_group() - 退出整个线程组
+uint64
+sys_exit_group(void)
+{
+  int status;
+  if(argint(0, &status) < 0)
+    return -1;
+  
+  // 简化实现：直接调用 exit
+  // 完整实现需要终止同一线程组的所有线程
+  exit(status);
+  return 0;  // 不会到达
+}

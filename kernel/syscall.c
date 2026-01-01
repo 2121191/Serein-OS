@@ -150,6 +150,11 @@ extern uint64 sys_mincore(void);     // V3.1
 extern uint64 sys_alarm(void);       // V3.0: SIGALRM 定时器
 extern uint64 sys_poll(void);        // V3.0: I/O 多路复用
 extern uint64 sys_fcntl(void);       // V3.0: 文件描述符控制
+extern uint64 sys_chmod(void);       // V3.0: 更改文件权限
+extern uint64 sys_fchmod(void);      // V3.0: 更改 fd 权限
+extern uint64 sys_clone(void);       // V3.0: 创建线程/进程
+extern uint64 sys_futex(void);       // V3.0: 快速用户空间互斥锁
+extern uint64 sys_exit_group(void);  // V3.0: 退出线程组
 
 static uint64 (*syscalls[])(void) = {
   [SYS_fork]        sys_fork,
@@ -212,6 +217,11 @@ static uint64 (*syscalls[])(void) = {
   [SYS_alarm]       sys_alarm,
   [SYS_poll]        sys_poll,
   [SYS_fcntl]       sys_fcntl,
+  [SYS_chmod]       sys_chmod,
+  [SYS_fchmod]      sys_fchmod,
+  [SYS_clone]       sys_clone,
+  [SYS_futex]       sys_futex,
+  [SYS_exit_group]  sys_exit_group,
 };
 
 static char *sysnames[] = {
@@ -272,6 +282,11 @@ static char *sysnames[] = {
   [SYS_alarm]       "alarm",
   [SYS_poll]        "poll",
   [SYS_fcntl]       "fcntl",
+  [SYS_chmod]       "chmod",
+  [SYS_fchmod]      "fchmod",
+  [SYS_clone]       "clone",
+  [SYS_futex]       "futex",
+  [SYS_exit_group]  "exit_group",
 };
 
 void

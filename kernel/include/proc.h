@@ -114,6 +114,11 @@ struct proc {
 
   // V3.0: per-fd flags (FD_CLOEXEC)
   char fd_flags[NOFILE];           // 每个 fd 的标志
+
+  // V3.0: 线程支持
+  int is_thread;                   // 是否为线程 (共享地址空间)
+  struct proc *thread_group;       // 线程组主进程指针 (NULL if main)
+  int thread_count;                // 线程组中的线程计数 (仅主进程有效)
 };
 
 // 进程统计信息（用于 getpinfo 系统调用）
