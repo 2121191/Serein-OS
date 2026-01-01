@@ -351,5 +351,5 @@ shmdetach_all(pagetable_t pagetable)
       // Call shmdetach to unmap and update ref count
       shmdetach(va, pagetable, shm->size);
     }
-  }`
+  }
 }
