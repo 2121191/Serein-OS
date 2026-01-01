@@ -30,9 +30,9 @@ fetchaddr(uint64 addr, uint64 *ip)
 int
 fetchstr(uint64 addr, char *buf, int max)
 {
-  // struct proc *p = myproc();
-  // int err = copyinstr(p->pagetable, buf, addr, max);
-  int err = copyinstr2(buf, addr, max);
+  struct proc *p = myproc();
+  int err = copyinstr(p->pagetable, buf, addr, max);
+  // int err = copyinstr2(buf, addr, max);
   if(err < 0)
     return err;
   return strlen(buf);
@@ -147,6 +147,9 @@ extern uint64 sys_tcgetpgrp(void);  // V2.2C
 extern uint64 sys_tcsetpgrp(void);  // V2.2C
 extern uint64 sys_pipe2(void);      // V3.0 (Task 12)
 extern uint64 sys_mincore(void);     // V3.1
+extern uint64 sys_alarm(void);       // V3.0: SIGALRM 定时器
+extern uint64 sys_poll(void);        // V3.0: I/O 多路复用
+extern uint64 sys_fcntl(void);       // V3.0: 文件描述符控制
 
 static uint64 (*syscalls[])(void) = {
   [SYS_fork]        sys_fork,
@@ -206,6 +209,9 @@ static uint64 (*syscalls[])(void) = {
   [SYS_tcsetpgrp]   sys_tcsetpgrp,
   [SYS_pipe2]       sys_pipe2,
   [SYS_mincore]     sys_mincore,
+  [SYS_alarm]       sys_alarm,
+  [SYS_poll]        sys_poll,
+  [SYS_fcntl]       sys_fcntl,
 };
 
 static char *sysnames[] = {
@@ -263,6 +269,9 @@ static char *sysnames[] = {
   [SYS_getpgid]     "getpgid",
   [SYS_setpgid]     "setpgid",
   [SYS_mincore]     "mincore",
+  [SYS_alarm]       "alarm",
+  [SYS_poll]        "poll",
+  [SYS_fcntl]       "fcntl",
 };
 
 void

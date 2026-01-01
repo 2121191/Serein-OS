@@ -204,6 +204,9 @@ found:
   // 新进程默认自成一组 (pgid = pid)
   p->pgid = p->pid;
 
+  // V3.0: 定时器初始化
+  p->alarm_ticks = 0;
+
   // PID Hash (V3.0): 插入哈希表
   extern void pidhash_insert(struct proc *p);
   pidhash_insert(p);

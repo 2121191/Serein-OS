@@ -59,5 +59,8 @@
 #define SYS_tcsetpgrp   55  // V2.2C: 设置 TTY 前台进程组
 #define SYS_pipe2       56  // V3.0 (Task 12)
 #define SYS_mincore     57  // V3.1: 查询页面是否驻留在物理内存
+#define SYS_alarm       58  // V3.0: 设置 SIGALRM 定时器
+#define SYS_poll        59  // V3.0: I/O 多路复用
+#define SYS_fcntl       60  // V3.0: 文件描述符控制
 
 #endif

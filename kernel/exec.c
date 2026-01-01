@@ -12,6 +12,8 @@
 #include "include/vm.h"
 #include "include/printf.h"
 #include "include/string.h"
+#include "include/file.h"   // V3.0: for fileclose
+#include "include/fcntl.h"  // V3.0: for FD_CLOEXEC
 
 // Load a program segment into pagetable at virtual address va.
 // va must be page-aligned
@@ -148,6 +150,15 @@ int exec(char *path, char **argv)
     if(*s == '/')
       last = s+1;
   safestrcpy(p->name, last, sizeof(p->name));
+  
+  // V3.0: Close CLOEXEC file descriptors
+  for(int fd = 0; fd < NOFILE; fd++) {
+    if(p->ofile[fd] && (p->fd_flags[fd] & FD_CLOEXEC)) {
+      fileclose(p->ofile[fd]);
+      p->ofile[fd] = 0;
+      p->fd_flags[fd] = 0;
+    }
+  }
     
   // Commit to the user image.
   oldpagetable = p->pagetable;

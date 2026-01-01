@@ -13,6 +13,9 @@ struct file {
   uint flags;        // V3.0 (Task 12): O_NONBLOCK etc.
 };
 
+// V3.0: Per-process fd flags stored in proc->fd_flags[NOFILE]
+// This is needed because FD_CLOEXEC is per-fd, not per-file
+
 // #define major(dev)  ((dev) >> 16 & 0xFFFF)
 // #define minor(dev)  ((dev) & 0xFFFF)
 // #define	mkdev(m,n)  ((uint)((m)<<16| (n)))

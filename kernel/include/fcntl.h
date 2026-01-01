@@ -5,6 +5,17 @@
 #define O_CREATE  0x200
 #define O_TRUNC   0x400
 #define O_NONBLOCK 0x800  // V3.0 (Task 12)
+#define O_CLOEXEC  0x80000  // V3.0: close-on-exec (高位避免冲突)
+
+// V3.0: fcntl() 命令
+#define F_DUPFD     0   // 复制 fd
+#define F_GETFD     1   // 获取 fd 标志 (FD_CLOEXEC)
+#define F_SETFD     2   // 设置 fd 标志
+#define F_GETFL     3   // 获取文件状态标志
+#define F_SETFL     4   // 设置文件状态标志
+
+// V3.0: 文件描述符标志
+#define FD_CLOEXEC  1   // close-on-exec 标志
 
 // mmap protection flags (V2.0.2)
 #define PROT_NONE   0x0

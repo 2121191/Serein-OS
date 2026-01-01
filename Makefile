@@ -240,6 +240,9 @@ UPROGS=\
 	$U/_kallocstat\
 	$U/_mincore_test\
 	$U/_vmstat\
+	$U/_alarmtest\
+	$U/_polltest\
+	$U/_fcntltest\
 
 
 	# xiugai12281612

@@ -316,7 +316,9 @@ sys_sigaction(void)
   if(argint(0, &sig) < 0 || argaddr(1, &handler) < 0)
     return -1;
   
+  #ifdef DEBUG
   printf("[sys_sigaction] pid=%d sig=%d handler=%p\n", p->pid, sig, handler);
+  #endif
   
   // 验证信号范围
   if(sig < 1 || sig >= NSIG)
@@ -340,19 +342,27 @@ sys_sigreturn(void)
   
   // 从保存的地址读取 sigframe
   uint64 frame_addr = p->sig_frame_addr;
+  #ifdef DEBUG
   printf("[sigreturn] pid=%d frame_addr=%p\n", p->pid, frame_addr);
+  #endif
   
   if(frame_addr == 0) {
+    #ifdef DEBUG
     printf("[sigreturn] ERROR: no active frame!\n");
+    #endif
     return -1;  // 没有活跃的信号帧
   }
   
   if(copyin(p->pagetable, (char*)&frame, frame_addr, sizeof(frame)) < 0) {
+    #ifdef DEBUG
     printf("[sigreturn] ERROR: copyin failed!\n");
+    #endif
     return -1;
   }
   
+  #ifdef DEBUG
   printf("[sigreturn] restoring epc=%p, signo=%d\n", frame.epc, frame.signo);
+  #endif
   
   // 恢复寄存器
   p->trapframe->ra = frame.ra;
@@ -664,4 +674,46 @@ sys_mincore(void)
   
   kfree(vec_buf);
   return 0;
+}
+
+// V3.0: 设置 SIGALRM 定时器
+// alarm(seconds) - 设置定时器，seconds 秒后发送 SIGALRM
+// 返回: 上次 alarm 的剩余时间 (秒)，如果没有则返回 0
+uint64
+sys_alarm(void)
+{
+  int seconds;
+  struct proc *p = myproc();
+  
+  if(argint(0, &seconds) < 0)
+    return -1;
+  
+  // 禁止负数
+  if(seconds < 0)
+    return -1;
+  
+  extern uint ticks;
+  extern struct spinlock tickslock;
+  
+  acquire(&tickslock);
+  uint current_ticks = ticks;
+  release(&tickslock);
+  
+  // 计算旧 alarm 的剩余时间
+  uint remaining = 0;
+  if(p->alarm_ticks > current_ticks) {
+    // 还有剩余时间
+    remaining = (p->alarm_ticks - current_ticks) / 10;  // 转换为秒 (假设 10 ticks/s)
+  }
+  
+  // 设置新 alarm
+  if(seconds == 0) {
+    // 取消 alarm
+    p->alarm_ticks = 0;
+  } else {
+    // 设置新的到期时间
+    p->alarm_ticks = current_ticks + seconds * 10;  // 转换为 ticks
+  }
+  
+  return remaining;
 }
