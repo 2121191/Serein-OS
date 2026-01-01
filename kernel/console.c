@@ -24,6 +24,9 @@
 #define BACKSPACE 0x100
 #define C(x)  ((x)-'@')  // Control-x
 
+// 统计因输入缓冲溢出而被丢弃的字符数
+uint64 console_dropped_chars = 0;
+
 void consputc(int c) {
   if(c == BACKSPACE){
     // if the user typed backspace, overwrite with a space.
@@ -250,6 +253,11 @@ consoleintr(int c)
         cons.w = cons.e;
         wakeup(&cons.r);
       }
+    }
+    else {
+      // 缓冲已满，丢弃字符并记录
+      console_dropped_chars++;
+      consputc('\a');          // 响铃提示
     }
     break;
   }

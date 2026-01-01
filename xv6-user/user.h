@@ -4,7 +4,7 @@
 
 struct stat;
 struct rtcdate;
-struct sysinfo;
+#include "../kernel/include/sysinfo.h" // Use the single source of truth from kernel
 struct pstat;
 
 // system calls

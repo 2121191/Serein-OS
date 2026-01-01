@@ -11,6 +11,7 @@
 #include "include/vm.h"
 #include "include/string.h"
 #include "include/printf.h"
+extern uint64 console_dropped_chars;
 
 // Fetch the uint64 at addr from the current process.
 int
@@ -321,32 +322,4 @@ sys_test_proc(void) {
     argint(0, &n);
     printf("hello world from proc %d, hart %d, arg %d\n", myproc()->pid, r_tp(), n);
     return 0;
-}
-
-uint64
-sys_sysinfo(void)
-{
-  uint64 addr;
-  // struct proc *p = myproc();
-
-  if (argaddr(0, &addr) < 0) {
-    return -1;
-  }
-
-  struct sysinfo info;
-  info.freemem = freemem_amount();
-  info.nproc = procnum();
-  extern uint ticks;
-  info.uptime = ticks;
-  info.cow_pages = kcow_pages();
-  info.shm_pages = kshm_pages();
-  info.mmap_pages = kmmap_pages();
-  kalloc_stats_copyout(&info.kalloc_stats);
-
-  // if (copyout(p->pagetable, addr, (char *)&info, sizeof(info)) < 0) {
-  if (copyout2(addr, (char *)&info, sizeof(info)) < 0) {
-    return -1;
-  }
-
-  return 0;
 }

@@ -15,6 +15,7 @@
 #include "include/sem.h"
 #include "include/sched.h"
 #include "include/vm.h"
+#include "include/sysinfo.h"
 
 extern int exec(char *path, char **argv);
 extern struct proc proc[NPROC];
@@ -719,6 +720,7 @@ sys_alarm(void)
   return remaining;
 }
 
+
 // V3.0: clone() - 创建线程/进程
 // 简化实现：基于 fork，支持部分 clone 标志
 uint64
@@ -831,4 +833,42 @@ sys_reboot(void)
   // Let's try regular cold reboot.
   sbi_system_reset(0, 0); 
   return 0; // Should not reach here
+}
+
+// V3.0: System-wide information
+// int sysinfo(struct sysinfo *info);
+// Returns: 0 on success, -1 on error.
+uint64
+sys_sysinfo(void)
+{
+  uint64 addr;
+  struct sysinfo info;
+  extern uint64 freemem_amount(void);
+  extern uint64 procnum(void);
+  extern uint64 kcow_pages(void);
+  extern uint64 kshm_pages(void);
+  extern uint64 kmmap_pages(void);
+  extern void kalloc_stats_copyout(void *);
+  extern uint64 console_dropped_chars;
+
+  if(argaddr(0, &addr) < 0)
+    return -1;
+
+  // Collect information
+  info.freemem = freemem_amount();
+  info.nproc = procnum();
+  info.uptime = ticks; // from timer.c
+  info.cow_pages = kcow_pages();
+  info.shm_pages = kshm_pages();
+  info.mmap_pages = kmmap_pages();
+  info.dropped = console_dropped_chars;
+  
+  // Copy kalloc statsS
+  kalloc_stats_copyout(&info.kalloc_stats);
+
+  // Copy to user space
+  if(copyout2(addr, (char *)&info, sizeof(info)) < 0)
+    return -1;
+
+  return 0;
 }

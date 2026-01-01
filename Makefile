@@ -248,6 +248,9 @@ UPROGS=\
 	$U/_threadtest\
 	$U/_halt\
 	$U/_reboot\
+	$U/_consoletest\
+	$U/_logtest\
+
 
 
 	# xiugai12281612

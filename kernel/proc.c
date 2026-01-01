@@ -679,9 +679,15 @@ scheduler(void)
       }
     }
     
-    if(minp == 0)
-      continue;
-    
+    if(minp == 0){
+        /*
+        * 没有找到可运行的进程
+        * 使用 WFI 指令让 CPU 进入低功耗状态
+        * 直到下一个中断唤醒它
+        */
+        //asm volatile("wfi" ::: "memory");
+        continue;
+    }
     // 阶段2：获取锁并验证状态
     // 只持有单个锁，避免与 reparent/exit 产生循环等待
     acquire(&minp->lock);

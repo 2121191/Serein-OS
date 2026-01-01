@@ -19,7 +19,7 @@ struct sysinfo {
   uint64 shm_pages;   // total shared memory pages in use
   uint64 mmap_pages;  // total mmap anonymous/file pages
   struct kalloc_stat kalloc_stats[NCPU]; // Per-CPU kalloc stats
+  uint64 dropped;     // dropped characters from console
 };
-
 
 #endif
