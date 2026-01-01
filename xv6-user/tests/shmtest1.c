@@ -3,10 +3,9 @@
 // This test verifies that shmcreate and shmopen work correctly
 //
 
-#include "user.h"
+#include "xv6-user/user.h"
 
-int
-main(void)
+static int shmtest1_main(void)
 {
   int shmid1, shmid2;
   

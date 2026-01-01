@@ -1,6 +1,6 @@
 #include "kernel/include/types.h"
 #include "kernel/include/stat.h"
-#include "user.h"
+#include "xv6-user/user.h"
 
 void test_pgid_basic(void) {
   printf("Test: pgid basic...\n");
@@ -87,7 +87,7 @@ void test_setpgid(void) {
   printf("setpgid: ok\n");
 }
 
-int main(void) {
+int pgtest_main(void) {
   printf("pgtest starting\n");
   test_pgid_basic();
   

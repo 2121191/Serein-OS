@@ -1,6 +1,6 @@
 #include "kernel/include/types.h"
 #include "kernel/include/stat.h"
-#include "user.h"
+#include "xv6-user/user.h"
 
 void test_basic(void) {
   printf("Test: basic uid/gid...\n");
@@ -71,7 +71,7 @@ void test_setuid(void) {
   printf("setuid: ok\n");
 }
 
-int main(void) {
+int idtest_main(void) {
   printf("idtest starting\n");
   test_basic();
   

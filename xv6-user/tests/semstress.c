@@ -1,3 +1,5 @@
+#undef ITERATIONS
+#undef NPROCS
 // semstress.c - 信号量压力测试
 // V2.0 压力测试套件: 验证信号量在高并发下的正确性和 kill 清理
 
@@ -33,7 +35,7 @@ consumer(int id)
 }
 
 void
-semstress(void)
+semstress_run(void)
 {
   int pids[NPROCS * 2];
   int i;
@@ -147,10 +149,9 @@ semkilltest(void)
   printf("semkilltest: PASSED\n");
 }
 
-int
-main(int argc, char *argv[])
+static int semstress_main(int argc, char *argv[])
 {
-  semstress();
+  semstress_run();
   semkilltest();
   exit(0);
 }

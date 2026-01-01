@@ -1,6 +1,6 @@
 // sigtest2.c - 用户态信号处理器测试 (V2.1) - 调试版
 #include "kernel/include/types.h"
-#include "user.h"
+#include "xv6-user/user.h"
 
 volatile int signal_received = 0;
 volatile int signal_number = 0;
@@ -24,7 +24,7 @@ void my_handler(int sig)
   (void)ret;  // 避免警告
 }
 
-int main(void)
+int sigtest2_main(void)
 {
   printf("=== User Signal Handler Test (V2.1) DEBUG ===\n\n");
   

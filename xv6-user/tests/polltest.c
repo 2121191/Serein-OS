@@ -5,7 +5,7 @@
 #include "kernel/include/stat.h"
 #include "xv6-user/user.h"
 
-int main(int argc, char *argv[])
+int polltest_main(int argc, char *argv[])
 {
     int p[2];
     struct pollfd fds[3];

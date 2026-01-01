@@ -82,7 +82,7 @@ void test_exit_group() {
   printf("  SUCCESS: exit_group available\n");
 }
 
-int main(int argc, char *argv[]) {
+int threadtest_main(int argc, char *argv[]) {
   printf("=== POSIX Threads Test (clone/futex) ===\n\n");
   
   test_clone_basic();
@@ -94,5 +94,5 @@ int main(int argc, char *argv[]) {
   
   // Use exit_group to exit
   exit_group(0);
-  return 0;  // Never reached
+  exit(0);  // Never reached
 }

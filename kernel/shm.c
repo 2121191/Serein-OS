@@ -177,10 +177,9 @@ shmopen(char *name)
   if((shm = shmfind(name)) == 0)
     return -1;  // Not found
   
-  acquire(&shm->lock);
-  shm->ref++;
+  // Just return the shmid, don't increment ref here.
+  // References are counted via shmattach/shmdetach only.
   int shmid = shm->shmid;
-  release(&shm->lock);
   
   #ifdef DEBUG
   printf("shmopen: opened shm '%s' (shmid=%d, ref=%d)\n", 
@@ -296,8 +295,11 @@ shmunlink(char *name)
     return -1;  // Not found
   
   acquire(&shm->lock);
-  // Mark as deleted by clearing name. Do not decrement ref here.
+  // Mark as deleted by clearing name
   shm->name[0] = '\0';
+  // Decrement ref (release the creator's reference)
+  if(shm->ref > 0)
+    shm->ref--;
   // If no references remain, free immediately
   if(shm->ref == 0){
     release(&shm->lock);

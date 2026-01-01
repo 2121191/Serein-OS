@@ -50,8 +50,7 @@ test_pipe2_basic()
   printf("test pipe2 basic OK\n");
 }
 
-int
-main(int argc, char *argv[])
+static int nbtest_main(int argc, char *argv[])
 {
   test_pipe2_basic();
   exit(0);

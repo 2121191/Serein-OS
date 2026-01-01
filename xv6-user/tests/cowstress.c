@@ -13,7 +13,7 @@
 char data[NPAGES * 4096];
 
 void
-cowstress(void)
+cowstress_run(void)
 {
   int pids[NFORK];
   int i, j, iter;
@@ -79,9 +79,8 @@ cowstress(void)
   printf("cowstress: PASSED\n");
 }
 
-int
-main(int argc, char *argv[])
+static int cowstress_main(int argc, char *argv[])
 {
-  cowstress();
+  cowstress_run();
   exit(0);
 }

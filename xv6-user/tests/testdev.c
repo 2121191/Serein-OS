@@ -6,8 +6,7 @@
 #include "xv6-user/user.h"
 #include "kernel/include/fcntl.h"
 
-int
-main()
+static int testdev_main()
 {
   char buf[100];
   int fd, n;

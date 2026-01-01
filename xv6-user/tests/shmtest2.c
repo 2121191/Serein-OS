@@ -5,12 +5,11 @@
 // 3) Boundary: creating larger than allowed should fail
 // 4) Unlink while attached: unlink should remove name but mapping still usable until detach
 
-#include "user.h"
+#include "xv6-user/user.h"
 
 #define PGSIZE 4096
 
-int
-main(void)
+static int shmtest2_main(void)
 {
   int shmid;
   uint64 va_parent;

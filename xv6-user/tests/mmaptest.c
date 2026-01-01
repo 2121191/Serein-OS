@@ -123,8 +123,7 @@ test_file_mmap(void)
   printf("OK\n");
 }
 
-int
-main(int argc, char *argv[])
+static int mmaptest_main(int argc, char *argv[])
 {
   printf("mmaptest starting\n");
   

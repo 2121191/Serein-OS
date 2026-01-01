@@ -3,8 +3,7 @@
 #include "kernel/include/types.h"
 #include "xv6-user/user.h"
 
-int
-main(void)
+static int semtest_main(void)
 {
   int sem_id;
   int value;

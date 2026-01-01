@@ -1,7 +1,6 @@
-#include "user.h"
+#include "xv6-user/user.h"
 
-int
-main(int argc, char **argv)
+static int logtest_main(int argc, char **argv)
 {
   printf("logtest: hello from user, pid=%d\n", getpid());
 

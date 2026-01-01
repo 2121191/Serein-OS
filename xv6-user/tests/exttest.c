@@ -1,7 +1,7 @@
 #include "kernel/include/types.h"
 #include "kernel/include/stat.h"
 #include "kernel/include/fcntl.h"
-#include "user.h"
+#include "xv6-user/user.h"
 
 // simple strcmp
 int parent_strcmp(const char *p, const char *q)
@@ -127,7 +127,7 @@ void test_getppid(void) {
   }
 }
 
-int main(void) {
+int exttest_main(void) {
   printf("exttest starting\n");
   test_lseek();
   test_dup2();

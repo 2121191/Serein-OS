@@ -3,7 +3,7 @@
 #include "kernel/include/sysinfo.h"
 #include "xv6-user/user.h"
 
-int main()
+int test_main()
 {
     struct sysinfo info;
     if (sysinfo(&info) < 0) {

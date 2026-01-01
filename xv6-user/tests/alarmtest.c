@@ -13,7 +13,7 @@ void alarm_handler(int sig)
     printf("SIGALRM handler called! sig=%d\n", sig);
 }
 
-int main(int argc, char *argv[])
+int alarmtest_main(int argc, char *argv[])
 {
     printf("=== alarm() Timer Test ===\n\n");
     

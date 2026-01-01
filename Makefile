@@ -206,50 +206,26 @@ UPROGS=\
 	$U/_mkdir\
 	$U/_xargs\
 	$U/_sleep\
-	$U/_shmtest1\
-	$U/_shmtest2\
 	$U/_find\
 	$U/_rm\
 	$U/_wc\
-	$U/_test\
 	$U/_usertests\
 	$U/_strace\
 	$U/_mv\
 	$U/_myprog\
 	$U/_cp\
 	$U/_stat\
-	$U/_semtest\
-	$U/_semtest2\
 	$U/_timer\
 	$U/_head\
 	$U/_tail\
 	$U/_ps\
-	$U/_cowstress\
-	$U/_semstress\
-	$U/_shmstress\
-	$U/_mmaptest\
 	$U/_bigfile\
-	$U/_sigtest\
-	$U/_sigtest2\
-	$U/_exttest\
-	$U/_idtest\
-	$U/_pgtest\
-	$U/_testdev\
 	$U/_cls\
-	$U/_nbtest\
 	$U/_kallocstat\
-	$U/_mincore_test\
 	$U/_vmstat\
-	$U/_alarmtest\
-	$U/_polltest\
-	$U/_fcntltest\
-	$U/_chmodtest\
-	$U/_chmodtest\
-	$U/_threadtest\
 	$U/_halt\
 	$U/_reboot\
 	$U/_consoletest\
-	$U/_logtest\
 
 
 

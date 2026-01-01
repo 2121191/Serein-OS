@@ -1,8 +1,8 @@
 // sigtest.c - 信号系统测试程序 (V2.1)
 #include "kernel/include/types.h"
-#include "user.h"
+#include "xv6-user/user.h"
 
-int main(void)
+int sigtest_main(void)
 {
   printf("=== Signal System Test (V2.1) ===\n");
   

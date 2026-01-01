@@ -1,3 +1,5 @@
+#undef ITERATIONS
+#undef NPROCS
 // shmstress.c - 共享内存压力测试
 // V2.0 压力测试套件: 验证共享内存在多进程高并发访问下的稳定性
 
@@ -9,7 +11,7 @@
 #define ITERATIONS 100 // 每个进程的写入次数
 
 void
-shmstress(void)
+shmstress_run(void)
 {
   int pids[NPROCS];
   int i;
@@ -94,9 +96,8 @@ shmstress(void)
   printf("shmstress: PASSED\n");
 }
 
-int
-main(int argc, char *argv[])
+static int shmstress_main(int argc, char *argv[])
 {
-  shmstress();
+  shmstress_run();
   exit(0);
 }

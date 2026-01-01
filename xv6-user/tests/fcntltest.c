@@ -5,7 +5,7 @@
 #include "kernel/include/stat.h"
 #include "xv6-user/user.h"
 
-int main(int argc, char *argv[])
+int fcntltest_main(int argc, char *argv[])
 {
     int fd, fd2, ret;
     

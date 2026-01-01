@@ -61,7 +61,7 @@ void test_permission_check() {
   printf("  SUCCESS: Permission system active\n");
 }
 
-int main(int argc, char *argv[]) {
+int chmodtest_main(int argc, char *argv[]) {
   printf("=== chmod/fchmod Test ===\n\n");
   
   test_chmod();

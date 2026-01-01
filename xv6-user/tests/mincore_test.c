@@ -1,6 +1,6 @@
 #include "kernel/include/types.h"
 #include "kernel/include/stat.h"
-#include "user.h"
+#include "xv6-user/user.h"
 
 #define PGSIZE 4096
 
@@ -10,8 +10,7 @@ bit_is_set(unsigned char *vec, int idx)
   return (vec[idx/8] >> (idx % 8)) & 1;
 }
 
-int
-main(void)
+static int mincore_test_main(void)
 {
   int pages = 8;
   int len = pages * PGSIZE;
