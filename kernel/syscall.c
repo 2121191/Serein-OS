@@ -155,6 +155,8 @@ extern uint64 sys_fchmod(void);      // V3.0: 更改 fd 权限
 extern uint64 sys_clone(void);       // V3.0: 创建线程/进程
 extern uint64 sys_futex(void);       // V3.0: 快速用户空间互斥锁
 extern uint64 sys_exit_group(void);  // V3.0: 退出线程组
+extern uint64 sys_halt(void);        // V3.1: 关机
+extern uint64 sys_reboot(void);      // V3.1: 重启
 
 static uint64 (*syscalls[])(void) = {
   [SYS_fork]        sys_fork,
@@ -222,6 +224,8 @@ static uint64 (*syscalls[])(void) = {
   [SYS_clone]       sys_clone,
   [SYS_futex]       sys_futex,
   [SYS_exit_group]  sys_exit_group,
+  [SYS_halt]        sys_halt,
+  [SYS_reboot]      sys_reboot,
 };
 
 static char *sysnames[] = {
@@ -287,6 +291,8 @@ static char *sysnames[] = {
   [SYS_clone]       "clone",
   [SYS_futex]       "futex",
   [SYS_exit_group]  "exit_group",
+  [SYS_halt]        "halt",
+  [SYS_reboot]      "reboot",
 };
 
 void

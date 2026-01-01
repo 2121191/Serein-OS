@@ -80,3 +80,5 @@ entry("fchmod");
 entry("clone");
 entry("futex");
 entry("exit_group");
+entry("halt");
+entry("reboot");

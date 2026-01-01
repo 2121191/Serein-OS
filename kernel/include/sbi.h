@@ -99,4 +99,10 @@ static inline void sbi_set_mie(void) {
 	SBI_CALL_0(0x0A000005);
 }
 
+// V3.1: Power Management
+static inline void sbi_system_reset(int type, int reason)
+{
+	SBI_CALL_2(0x53525354, type, reason);
+}
+
 #endif

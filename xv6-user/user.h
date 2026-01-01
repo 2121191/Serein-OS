@@ -103,6 +103,8 @@ int fchmod(int fd, int mode);
 int clone(int flags, void *stack);
 int futex(int *addr, int op, int val);
 void exit_group(int status);
+int halt(void);
+int reboot(void);
 
 // Clone flags
 #define CLONE_VM      0x00000100

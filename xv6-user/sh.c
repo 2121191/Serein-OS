@@ -62,7 +62,13 @@ int fork1(void);  // Fork but panics on failure.
 void panic(char*);
 struct cmd *parsecmd(char*);
 
+struct cmd *parsecmd(char*);
+
 char mycwd[128];
+
+// Helper: Safe string copy
+// u_strncpy moved to avoid conflict
+
 
 int
 checkenvname(char* s)
@@ -246,15 +252,303 @@ runcmd(struct cmd *cmd)
   exit(0);
 }
 
+// V3.1: Shell Command History
+#define HISTORY_SIZE 16
+#define KEY_UP    0xE2
+#define KEY_DOWN  0xE3
+#define INPUT_BUF_SIZE 128
+#define BACKSPACE 0x08
+
+struct {
+  char commands[HISTORY_SIZE][INPUT_BUF_SIZE];
+  int head;   // Where to write next
+  int tail;   // Oldest command
+  int count;  // How many valid commands
+  int pos;    // Navigation position (-1 = not navigating)
+} history;
+
+void
+history_init(void)
+{
+  history.head = 0;
+  history.tail = 0;
+  history.count = 0;
+  history.pos = -1;
+}
+
+void
+history_add(char *cmd)
+{
+  // Safety check: Don't add if empty
+  if(cmd[0] == 0) return;
+  
+  // Don't duplicate the immediately previous command
+  if(history.count > 0) {
+    int prev = (history.head - 1 + HISTORY_SIZE) % HISTORY_SIZE;
+    if(strcmp(history.commands[prev], cmd) == 0)
+      return;
+  }
+  
+  // Add to circular buffer
+  strcpy(history.commands[history.head], cmd);
+  history.head = (history.head + 1) % HISTORY_SIZE;
+  
+  if(history.count < HISTORY_SIZE) {
+    history.count++;
+  } else {
+    history.tail = (history.tail + 1) % HISTORY_SIZE;
+  }
+  
+  history.pos = -1; // Reset navigation
+}
+
+char*
+history_prev(void)
+{
+  if(history.count == 0) return 0;
+  
+  if(history.pos == -1) {
+    // Start from newest (-1 because head points to next EMPTY slot)
+    history.pos = (history.head - 1 + HISTORY_SIZE) % HISTORY_SIZE;
+  } else if(history.pos != history.tail) {
+    // Move backward until tail
+    history.pos = (history.pos - 1 + HISTORY_SIZE) % HISTORY_SIZE;
+  }
+  
+  return history.commands[history.pos];
+}
+
+char*
+history_next(void)
+{
+  if(history.pos == -1) return 0; // Not navigating
+  
+  int next = (history.pos + 1) % HISTORY_SIZE;
+  if(next == history.head) {
+    // Moved past latest command -> back to empty input line
+    history.pos = -1;
+    return ""; 
+  }
+  
+  history.pos = next;
+  return history.commands[history.pos];
+}
+
+// V3.1: Helper for strncpy
+char*
+u_strncpy(char *s, const char *t, int n)
+{
+  char *os = s;
+  while(n-- > 0 && (*s++ = *t++) != 0)
+    ;
+  while(n-- > 0)
+    *s++ = 0;
+  return os;
+}
+
+// V3.1: Tab Completion (Fixed)
+#define MAX_MATCHES 16
+#define MAX_NAME_LEN 32
+
+void
+completion(char *buf, int *idx)
+{
+  char *prefix = buf;
+  int prefix_len = *idx;
+  
+  // DEBUG: Check what sh thinks buf is
+  // fprintf(2, "\nDEBUG: completion idx=%d buf='%s'\n", *idx, buf);
+
+  int fd;
+  struct stat st;
+  
+  // Find the start of the last word
+  int i;
+  for(i = *idx - 1; i >= 0; i--) {
+    if(buf[i] == ' ') {
+      prefix = buf + i + 1;
+      prefix_len = *idx - (i + 1);
+      break;
+    }
+  }
+  
+  if(prefix_len == 0) return; // Nothing to complete
+
+  // Scan current directory
+  if((fd = open(".", 0)) < 0){
+    return;
+  }
+
+  // Store matches
+  char matches[MAX_MATCHES][MAX_NAME_LEN];
+  int match_count = 0;
+
+  while(readdir(fd, &st) == 1 && match_count < MAX_MATCHES){
+    if(st.name[0] == 0) continue;
+    
+    // Check prefix match
+    int is_match = 1;
+    for(int j=0; j<prefix_len; j++) {
+      if(st.name[j] != prefix[j]) {
+        is_match = 0;
+        break;
+      }
+    }
+    
+    if(is_match) {
+      memset(matches[match_count], 0, MAX_NAME_LEN);
+      u_strncpy(matches[match_count], st.name, MAX_NAME_LEN-1);
+      match_count++;
+    }
+  }
+  close(fd);
+  
+  if(match_count == 0) {
+    return; // No matches
+  }
+  
+  if(match_count == 1) {
+    // Single match: auto-complete fully
+    int name_len = strlen(matches[0]);
+    int extra_len = name_len - prefix_len;
+    
+    if(extra_len > 0) {
+      char *append = matches[0] + prefix_len;
+      for(int k=0; k<extra_len; k++) {
+        buf[*idx] = append[k];
+        fprintf(2, "%c", append[k]);
+        (*idx)++;
+      }
+    }
+  } else {
+    // Multiple matches: compute common prefix first
+    int common_len = strlen(matches[0]);
+    for(int m=1; m<match_count; m++) {
+      int k = 0;
+      while(k < common_len && matches[0][k] == matches[m][k]) {
+        k++;
+      }
+      common_len = k;
+    }
+    
+    // Complete common prefix beyond what user typed
+    int extra_len = common_len - prefix_len;
+    if(extra_len > 0) {
+      char *append = matches[0] + prefix_len;
+      for(int k=0; k<extra_len; k++) {
+        buf[*idx] = append[k];
+        fprintf(2, "%c", append[k]);
+        (*idx)++;
+      }
+    }
+    
+    // List all matches
+    fprintf(2, "\n");
+    for(int m=0; m<match_count; m++) {
+      fprintf(2, "%s  ", matches[m]);
+    }
+    fprintf(2, "\n-> %s $ %s", mycwd, buf);
+  }
+}
+
 int
 getcmd(char *buf, int nbuf)
 {
   fprintf(2, "-> %s $ ", mycwd);
   memset(buf, 0, nbuf);
-  gets(buf, nbuf);
-  if(buf[0] == 0) // EOF
-    return -1;
-  return 0;
+  
+  int i = 0; // Current buffer index
+  char c;
+  
+  while(1){
+    if(read(0, &c, 1) != 1) { // EOF
+      if(i > 0) return 0; // Return partial line if any
+      return -1;
+    }
+    
+    // Tab Completion
+    if(c == '\t') {
+      completion(buf, &i);
+      continue;
+    }
+
+    // Ctrl+L: Clear Screen
+    if(c == 0x0C) {
+      // Clear screen and home cursor
+      fprintf(2, "\x1b[2J\x1b[H"); 
+      // Reprint prompt
+      fprintf(2, "-> %s $ ", mycwd);
+      // Reprint current buffer
+      for(int j=0; j<i; j++) {
+        fprintf(2, "%c", buf[j]);
+      }
+      continue;
+    }
+
+    // Backspace Handling (0x7f)
+    if(c == '\x7f') {
+      if(i > 0) {
+        i--;
+        buf[i] = 0;
+        // Erase on screen
+        fprintf(2, "\b \b");
+      }
+      continue;
+    }
+
+    // V3.1: History Navigation
+    if(c == (char)KEY_UP || c == (char)KEY_DOWN) {
+      char *hist_cmd = 0;
+      
+      if(c == (char)KEY_UP) {
+        hist_cmd = history_prev();
+      } else {
+        hist_cmd = history_next();
+      }
+      
+      if(hist_cmd) {
+        // Erase current line from screen
+        while(i > 0) {
+          fprintf(2, "\b \b");
+          i--;
+        }
+        
+        // Copy historical command
+        memset(buf, 0, nbuf);
+        strcpy(buf, hist_cmd);
+        i = strlen(buf);
+        
+        // Print new line
+        fprintf(2, "%s", buf);
+      }
+      continue;
+    }
+
+    if(c == '\n' || c == '\r'){
+      buf[i] = 0;
+      fprintf(2, "\n");
+      // Add to history if not empty
+      if(i > 0) history_add(buf);
+      return 0;
+    }
+    
+    if(c == BACKSPACE || c == '\x7f'){
+      if(i > 0){
+        i--;
+        fprintf(2, "\b \b"); // Erase character visually
+        buf[i] = 0;
+      }
+      continue;
+    }
+    
+    if(i < nbuf - 1){
+      // V3.1: Only store printable chars, echo is handled by kernel console
+      if((unsigned char)c >= 32 || c == '\t') {
+        buf[i++] = c;
+        // fprintf(2, "%c", c); // Double echo fix: Kernel echoes, shell should not
+      }
+    }
+  }
 }
 
 int
@@ -275,6 +569,12 @@ main(void)
   strcpy(envs[nenv].name, "SHELL");
   strcpy(envs[nenv].value, "/bin");
   nenv++;
+
+  strcpy(envs[nenv].value, "/bin");
+  nenv++;
+  
+  // V3.1: Initialize history
+  history_init();
 
   getcwd(mycwd);
   // Read and run input commands.

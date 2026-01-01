@@ -1,18 +1,19 @@
-
 #include "include/types.h"
 #include "include/riscv.h"
 #include "include/param.h"
-#include "include/memlayout.h"
-#include "include/spinlock.h"
-#include "include/proc.h"
-#include "include/syscall.h"
+#include "kernel/include/memlayout.h"
+#include "kernel/include/spinlock.h"
+#include "kernel/include/proc.h"
+#include "kernel/include/syscall.h"
+#include "kernel/include/sysnum.h"
+#include "kernel/include/sysnum.h"
+#include "kernel/include/sbi.h" // V3.1: For power management
 #include "include/timer.h"
 #include "include/kalloc.h"
 #include "include/string.h"
 #include "include/printf.h"
 #include "include/sem.h"
 #include "include/sched.h"
-#include "include/vm.h"
 #include "include/vm.h"
 
 extern int exec(char *path, char **argv);
@@ -810,4 +811,24 @@ sys_exit_group(void)
   // 完整实现需要终止同一线程组的所有线程
   exit(status);
   return 0;  // 不会到达
+}
+
+// V3.1: Power management system calls
+uint64
+sys_halt(void)
+{
+  printf("System halting...\n");
+  sbi_shutdown();
+  return 0; // Should not reach here
+}
+
+uint64
+sys_reboot(void)
+{
+  printf("System rebooting...\n");
+  // type=0 (SHUTDOWN), reason=1 (WARM_REBOOT) -> sbi_system_reset standard
+  // or type=0 (SHUTDOWN), reason=0 (COLD_REBOOT)
+  // Let's try regular cold reboot.
+  sbi_system_reset(0, 0); 
+  return 0; // Should not reach here
 }

@@ -1,0 +1,60 @@
+# xv6 交互体验增强 (UX Enhancement) 开发计划
+
+## 1. 概述
+本项目旨在提升 xv6 的终端交互体验，使其更符合现代用户习惯。开发内容包含快捷键支持、Shell 增强及电源管理功能。
+
+## 2. 功能清单与状态
+
+### 2.1 快捷键清屏 (Ctrl+L)
+- **需求**: 单击 `Ctrl+L` 直接清屏，无需输入 `cls` 命令。
+- **状态**: [x] 已完成 (优化)
+- **涉及文件**:
+    - `xv6-user/sh.c`: 从内核态移至用户态处理，支持保留 Input Buffer 并重绘 Prompt，解决提示符消失问题。
+
+### 2.2 关机与重启 (Power Management)
+- **需求**: 软关机/重启，替代强制关闭 QEMU。
+- **状态**: [x] 已完成
+- **涉及文件**: 
+    - `kernel/include/sbi.h`: 添加 `sbi_system_reset` (EID 0x53525354) 接口。
+    - `kernel/sysproc.c`: 实现 `sys_halt` (sbi_shutdown) 和 `sys_reboot` (sbi_system_reset)。
+    - `xv6-user/halt.c`: 用户态关机命令。
+    - `xv6-user/reboot.c`: 用户态重启命令。
+    - 用户: `xv6-user/halt.c`, `xv6-user/reboot.c`, `user.h`, `usys.pl`
+
+### 2.3 Shell 自动补全 (Tab Completion)
+- **需求**: 按 TAB 键自动补全文件名。支持单匹配直接补全，多匹配显示列表并补全公共前缀。
+- **状态**: [x] 已完成 (V3.1)
+- **技术细节**:
+    - **Shell 逻辑 (`sh.c`)**:
+        - 重写 `completion` 函数，使用 `readdir` 扫描当前目录。
+        - **多重匹配**: 计算所有匹配项的最长公共前缀 (LCP) 进行补全。
+        - **列表显示**: 匹配项超过 1 个时，打印所有候选项。
+        - **显示优化**: 输出统一使用 `stderr` (fd 2)，确保与 Prompt 同步。
+        - **Bug 修复**: 移除了 Shell `getcmd` 中的显式回显，避免了与 Kernel Console 回显冲突导致的 "Double Echo" (如 `alaralar`)。
+    - **Kernel 支持 (`console.c`)**:
+        - **Echo Suppression**: 禁止内核回显 Tab (`\t`) 和 Ctrl+L (`0x0C`)，交由 Shell 完全控制显示，消除显示伪影。
+        - **Wakeup**: 按下 Tab 时立即唤醒 Shell 进程，无需等待换行符。
+
+### 2.4 Shell 命令历史 (Command History)
+- **需求**: 使用上下箭头键浏览历史命令。
+- **状态**: [x] 已完成 (V3.1)
+- **技术细节**:
+    - **Console (`console.c`)**: 解析 ANSI 转义序列 (`\x1b[A`, `\x1b[B`)，映射为内部键值 `Key_UP` / `Key_DOWN` 并立即唤醒 Shell。
+    - **Shell (`sh.c`)**: 维护环形历史缓冲区 (Circular Buffer)，支持回滚查看和编辑旧命令。
+
+### 2.5 交互式编辑优化 (Backspace Handling)
+- **需求**: 支持删除自动补全或历史回溯生成的字符。
+- **状态**: [x] 已完成 (修复)
+- **问题根因**: 内核 Console Buffer 为空/已提交时，默认吞掉了 Backspace，导致 Shell 无法感知删除操作。
+- **解决方案**: 
+    - 修改 `kernel/console.c`: 当 Kernel Buffer 已提交时，将 Backspace (`\x7f`) 作为普通字符放入 Buffer 并唤醒 Shell。
+    - 修改 `xv6-user/sh.c`: 增强 Backspace 处理逻辑，支持可视删除 (`\b \b`) 本地 Buffer 内容。
+
+## 3. 实现日志
+
+- **2026-01-01**: 
+    - 完成 Shell Tab 补全功能的重构与修复。
+    - 解决了 Console/Shell 双重回显 (Double Echo) 问题。
+    - 修复了 Backspace 无法删除历史/补全内容的问题。
+    - 验证通过 `usertests` 及 `alar` 补全测试。
+- **YYYY-MM-DD**: 文档初始化。

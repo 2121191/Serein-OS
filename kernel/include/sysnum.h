@@ -67,6 +67,8 @@
 #define SYS_clone       63  // V3.0: 创建线程/进程
 #define SYS_futex       64  // V3.0: 快速用户空间互斥锁
 #define SYS_exit_group  65  // V3.0: 退出整个线程组
+#define SYS_halt        66  // V3.1: 关机
+#define SYS_reboot      67  // V3.1: 重启
 
 // V3.0: clone() 标志
 #define CLONE_VM        0x00000100  // 共享虚拟内存

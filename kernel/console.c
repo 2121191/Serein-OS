@@ -172,24 +172,81 @@ consoleintr(int c)
     if(cons.e != cons.w){
       cons.e--;
       consputc(BACKSPACE);
+    } else {
+      // V3.1: Pass backspace to shell if buffer committed (for history/completion editing)
+      c = '\x7f'; // Use standard DEL/Backspace code for shell
+      if(cons.e-cons.r < INPUT_BUF){
+        cons.buf[cons.e++ % INPUT_BUF] = c;
+        cons.w = cons.e;
+        wakeup(&cons.r);
+      }
     }
     break;
   default:
+    // V3.1: Shell Command History - Escape Sequence Parsing
+    // State machine to detect arrow keys
+    // State 0: Normal
+    // State 1: Saw ESC (0x1b)
+    // State 2: Saw [
+    
+    // Static state variables for escape sequence parsing
+    // These must persist between interrupts
+    static int esc_state = 0;
+    
+    if (esc_state == 0 && c == 0x1b) {
+      esc_state = 1;
+      // Do NOT echo ESC yet, wait to see if it's a sequence
+      break; 
+    }
+    
+    if (esc_state == 1) {
+      if (c == '[') {
+        esc_state = 2;
+        break;
+      } else {
+        // Not a sequence, treat previous ESC as char? 
+        // For simplicity, just reset and process this char as normal
+        // (We lose the ESC, but standalone ESC is rare in shell)
+        esc_state = 0; 
+      }
+    }
+    
+    if (esc_state == 2) {
+      esc_state = 0; // Reset after processing this char
+      
+      if (c == 'A') { // UP Arrow
+        c = 0xE2; // KEY_UP
+      } else if (c == 'B') { // DOWN Arrow
+        c = 0xE3; // KEY_DOWN
+      } else {
+        // Unknown sequence, ignore entire sequence
+        break;
+      }
+      
+      // Fall through to normal processing with mapped special code
+    }
+
     if(c != 0 && cons.e-cons.r < INPUT_BUF){
       #ifndef QEMU
       if (c == '\r') break;     // on k210, "enter" will input \n and \r
       #else
       c = (c == '\r') ? '\n' : c;
       #endif
+      
       // echo back to the user.
-      consputc(c);
+      // Don't echo special key codes (0xE2/0xE3) or Tab/Ctrl+L (handled by shell)
+      if (c < 0xE0 && c != '\t' && c != 0x0C) {
+        consputc(c);
+      }
 
       // store for consumption by consoleread().
       cons.buf[cons.e++ % INPUT_BUF] = c;
 
-      if(c == '\n' || c == C('D') || cons.e == cons.r+INPUT_BUF){
+      // V3.1: Wake up on special keys (Up/Down/Tab) so shell can respond immediately
+      if(c == '\n' || c == C('D') || cons.e == cons.r+INPUT_BUF || 
+         c == (char)0xE2 || c == (char)0xE3 || c == '\t' || c == 0x0C){
         // wake up consoleread() if a whole line (or end-of-file)
-        // has arrived.
+        // has arrived, or special key pressed.
         cons.w = cons.e;
         wakeup(&cons.r);
       }
