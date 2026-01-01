@@ -231,6 +231,11 @@ shmattach(int shmid, pagetable_t pagetable)
 
   // Count this attachment
   shm->ref++;
+  // 统计：本进程映射了 shm->npages 个共享页
+  kshm_pages_add(shm->npages);
+#ifdef DEBUG
+  printf("[shm] attach shmid=%d npages=%d => shm_pages=%d\n", shmid, shm->npages, (int)kshm_pages());
+#endif
 
   release(&shm->lock);
   
@@ -257,6 +262,11 @@ shmdetach(uint64 va, pagetable_t pagetable, uint64 size)
   // Unmap the virtual pages according to shm->npages
   // Do NOT free the physical pages here; physical pages are owned by the shared segment
   vmunmap(pagetable, va, shm->npages, 0);
+  // 统计：本进程解除映射 shm->npages 个共享页
+  kshm_pages_add(-(long)shm->npages);
+#ifdef DEBUG
+  printf("[shm] detach shmid=%d npages=%d => shm_pages=%d\n", shm->shmid, shm->npages, (int)kshm_pages());
+#endif
 
   // Decrement reference and free if unlinked and no refs
   if(shm->ref > 0)

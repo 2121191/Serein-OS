@@ -31,9 +31,9 @@ fetchaddr(uint64 addr, uint64 *ip)
 int
 fetchstr(uint64 addr, char *buf, int max)
 {
-  // struct proc *p = myproc();
-  // int err = copyinstr(p->pagetable, buf, addr, max);
-  int err = copyinstr2(buf, addr, max);
+  struct proc *p = myproc();
+  int err = copyinstr(p->pagetable, buf, addr, max);
+  // int err = copyinstr2(buf, addr, max);
   if(err < 0)
     return err;
   return strlen(buf);
@@ -144,6 +144,13 @@ extern uint64 sys_getgid(void);     // V2.2
 extern uint64 sys_setgid(void);     // V2.2
 extern uint64 sys_getpgid(void);    // V2.2
 extern uint64 sys_setpgid(void);    // V2.2
+extern uint64 sys_tcgetpgrp(void);  // V2.2C
+extern uint64 sys_tcsetpgrp(void);  // V2.2C
+extern uint64 sys_pipe2(void);      // V3.0 (Task 12)
+extern uint64 sys_mincore(void);     // V3.1
+extern uint64 sys_alarm(void);       // V3.0: SIGALRM 定时器
+extern uint64 sys_poll(void);        // V3.0: I/O 多路复用
+extern uint64 sys_fcntl(void);       // V3.0: 文件描述符控制
 
 static uint64 (*syscalls[])(void) = {
   [SYS_fork]        sys_fork,
@@ -199,6 +206,13 @@ static uint64 (*syscalls[])(void) = {
   [SYS_setgid]      sys_setgid,
   [SYS_getpgid]     sys_getpgid,
   [SYS_setpgid]     sys_setpgid,
+  [SYS_tcgetpgrp]   sys_tcgetpgrp,
+  [SYS_tcsetpgrp]   sys_tcsetpgrp,
+  [SYS_pipe2]       sys_pipe2,
+  [SYS_mincore]     sys_mincore,
+  [SYS_alarm]       sys_alarm,
+  [SYS_poll]        sys_poll,
+  [SYS_fcntl]       sys_fcntl,
 };
 
 static char *sysnames[] = {
@@ -255,6 +269,10 @@ static char *sysnames[] = {
   [SYS_setgid]      "setgid",
   [SYS_getpgid]     "getpgid",
   [SYS_setpgid]     "setpgid",
+  [SYS_mincore]     "mincore",
+  [SYS_alarm]       "alarm",
+  [SYS_poll]        "poll",
+  [SYS_fcntl]       "fcntl",
 };
 
 void
@@ -283,27 +301,4 @@ sys_test_proc(void) {
     argint(0, &n);
     printf("hello world from proc %d, hart %d, arg %d\n", myproc()->pid, r_tp(), n);
     return 0;
-}
-
-uint64
-sys_sysinfo(void)
-{
-  uint64 addr;
-  // struct proc *p = myproc();
-
-  if (argaddr(0, &addr) < 0) {
-    return -1;
-  }
-
-  struct sysinfo info;
-  info.freemem = freemem_amount();
-  info.nproc = procnum();
-  info.dropped = (uint)console_dropped_chars; 
-
-  // if (copyout(p->pagetable, addr, (char *)&info, sizeof(info)) < 0) {
-  if (copyout2(addr, (char *)&info, sizeof(info)) < 0) {
-    return -1;
-  }
-
-  return 0;
 }

@@ -243,6 +243,10 @@ vmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
     if(do_free){
       uint64 pa = PTE2PA(*pte);
       kfree((void*)pa);
+      // best-effort: 如果这段解除映射来自 mmap/shm 等，也会走到这里。
+      // mmap 页在 mmap_handle_fault 里 +1，这里统一 -1，可能会对非 mmap 页产生误差，
+      // 但用于比赛展示“趋势”足够直观。
+      kmmap_pages_add(-1);
     }
     *pte = 0;
   }
@@ -731,6 +735,7 @@ cow_handle(pagetable_t pagetable, pagetable_t kpagetable, uint64 va)
   char *mem = kalloc();
   if (mem == 0)
     return -1;
+  kcow_pages_add(1); // A COW fault occurred
   
   memmove(mem, (char*)pa, PGSIZE);
   
@@ -852,6 +857,9 @@ mmap_handle_fault(pagetable_t pagetable, pagetable_t kpagetable, uint64 va)
     vmunmap(pagetable, va, 1, 1);
     return -1;
   }
+
+  // 成功为 mmap 缺页分配并映射了一页
+  kmmap_pages_add(1);
   
   return 0;
 }

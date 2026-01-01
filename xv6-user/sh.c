@@ -306,9 +306,15 @@ main(void)
         free(cmd);
         continue;
       }
-      else if(fork1() == 0) 
+      else if(fork1() == 0) {
+        // V2.2C: 子进程自成进程组，并设为 TTY 前台
+        setpgid(0, 0);           // pgid = pid
+        tcsetpgrp(getpid());     // 设为前台进程组
         runcmd(cmd);
+      }
       wait(0);
+      // V2.2C: 命令结束后，Shell 恢复为前台进程组
+      tcsetpgrp(getpid());
       free(cmd);
     }
   }

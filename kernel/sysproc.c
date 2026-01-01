@@ -13,6 +13,7 @@
 #include "include/sem.h"
 #include "include/sched.h"
 #include "include/vm.h"
+#include "include/sysinfo.h"
 
 extern int exec(char *path, char **argv);
 extern struct proc proc[NPROC];
@@ -208,6 +209,29 @@ sys_setpgid(void)
   return -1;  // 未找到进程
 }
 
+// V2.2C: 获取 TTY 前台进程组
+extern int tty_fg_pgid;
+
+uint64
+sys_tcgetpgrp(void)
+{
+  return tty_fg_pgid;
+}
+
+// V2.2C: 设置 TTY 前台进程组
+uint64
+sys_tcsetpgrp(void)
+{
+  int pgid;
+  if(argint(0, &pgid) < 0)
+    return -1;
+  
+  // 简化实现：允许任何进程设置前台进程组
+  // 完整实现应检查调用者是否是控制终端的会话领导
+  tty_fg_pgid = pgid;
+  return 0;
+}
+
 uint64
 sys_fork(void)
 {
@@ -292,7 +316,9 @@ sys_sigaction(void)
   if(argint(0, &sig) < 0 || argaddr(1, &handler) < 0)
     return -1;
   
+  #ifdef DEBUG
   printf("[sys_sigaction] pid=%d sig=%d handler=%p\n", p->pid, sig, handler);
+  #endif
   
   // 验证信号范围
   if(sig < 1 || sig >= NSIG)
@@ -316,19 +342,27 @@ sys_sigreturn(void)
   
   // 从保存的地址读取 sigframe
   uint64 frame_addr = p->sig_frame_addr;
+  #ifdef DEBUG
   printf("[sigreturn] pid=%d frame_addr=%p\n", p->pid, frame_addr);
+  #endif
   
   if(frame_addr == 0) {
+    #ifdef DEBUG
     printf("[sigreturn] ERROR: no active frame!\n");
+    #endif
     return -1;  // 没有活跃的信号帧
   }
   
   if(copyin(p->pagetable, (char*)&frame, frame_addr, sizeof(frame)) < 0) {
+    #ifdef DEBUG
     printf("[sigreturn] ERROR: copyin failed!\n");
+    #endif
     return -1;
   }
   
+  #ifdef DEBUG
   printf("[sigreturn] restoring epc=%p, signo=%d\n", frame.epc, frame.signo);
+  #endif
   
   // 恢复寄存器
   p->trapframe->ra = frame.ra;
@@ -571,4 +605,153 @@ sys_waitpid(void)
     return -1;
   
   return waitpid(pid, addr, options);
+}
+
+// V3.1: 查询页面是否驻留在物理内存
+// int mincore(void *addr, size_t length, unsigned char *vec);
+// 返回: 0 成功, -1 失败
+uint64
+sys_mincore(void)
+{
+  uint64 addr;
+  uint64 length;
+  uint64 vec;
+  struct proc *p = myproc();
+  
+  // 获取参数
+  if(argaddr(0, &addr) < 0 || argaddr(1, &length) < 0 || argaddr(2, &vec) < 0)
+    return -1;
+    
+  // 检查地址对齐和长度是否有效
+  if(addr % PGSIZE != 0 || length == 0)
+    return -1;
+    
+  // 计算需要的字节数 (每个页面对应1位，向上取整)
+  uint64 npages = (length + PGSIZE - 1) / PGSIZE;
+  uint64 vec_size = (npages + 7) / 8;  // 位图大小(字节)
+  
+  // 结果缓冲区（内核临时 buffer）
+  // vec_size 最多是 (npages+7)/8，通常远小于一页。
+  char *vec_buf = kalloc();
+  if(vec_buf == 0)
+    return -1;
+  memset(vec_buf, 0, PGSIZE);
+  
+  pte_t *pte;
+  uint64 a;
+  int i;
+  
+  // 基本范围检查（避免 addr+length 溢出）
+  if(addr + length < addr){
+    kfree(vec_buf);
+    return -1;
+  }
+
+  // 遍历所有页面（按 npages 遍历更稳妥）
+  for(a = addr, i = 0; i < npages; a += PGSIZE, i++) {
+    // 检查地址是否在用户空间范围内
+    if(a >= p->sz)
+      break;
+      
+    // 获取页表项
+    pte = walk(p->pagetable, a, 0);
+    if(pte == 0 || (*pte & PTE_V) == 0) {
+      // 页面无效，继续下一个
+      continue;
+    }
+    
+    // 该工程的 PTE flag 里没有实现 RISC-V 的 Accessed(PTE_A) 位，
+    // 因此这里采用“是否已映射且有效(PTE_V)”作为是否驻留的判断。
+    // 这等价于：只要页表项存在且有效，就认为该页当前在物理内存中。
+    vec_buf[i/8] |= (1 << (i % 8));
+  }
+  
+  // 将结果复制回用户空间
+  if(copyout2(vec, vec_buf, vec_size) < 0) {
+    kfree(vec_buf);
+    return -1;
+  }
+  
+  kfree(vec_buf);
+  return 0;
+}
+
+// V3.0: 设置 SIGALRM 定时器
+// alarm(seconds) - 设置定时器，seconds 秒后发送 SIGALRM
+// 返回: 上次 alarm 的剩余时间 (秒)，如果没有则返回 0
+uint64
+sys_alarm(void)
+{
+  int seconds;
+  struct proc *p = myproc();
+  
+  if(argint(0, &seconds) < 0)
+    return -1;
+  
+  // 禁止负数
+  if(seconds < 0)
+    return -1;
+  
+  extern uint ticks;
+  extern struct spinlock tickslock;
+  
+  acquire(&tickslock);
+  uint current_ticks = ticks;
+  release(&tickslock);
+  
+  // 计算旧 alarm 的剩余时间
+  uint remaining = 0;
+  if(p->alarm_ticks > current_ticks) {
+    // 还有剩余时间
+    remaining = (p->alarm_ticks - current_ticks) / 10;  // 转换为秒 (假设 10 ticks/s)
+  }
+  
+  // 设置新 alarm
+  if(seconds == 0) {
+    // 取消 alarm
+    p->alarm_ticks = 0;
+  } else {
+    // 设置新的到期时间
+    p->alarm_ticks = current_ticks + seconds * 10;  // 转换为 ticks
+  }
+  
+  return remaining;
+}
+
+// V3.2: System-wide information
+// int sysinfo(struct sysinfo *info);
+// Returns: 0 on success, -1 on error.
+uint64
+sys_sysinfo(void)
+{
+  uint64 addr;
+  struct sysinfo info;
+  extern uint64 freemem_amount(void);
+  extern uint64 procnum(void);
+  extern uint64 kcow_pages(void);
+  extern uint64 kshm_pages(void);
+  extern uint64 kmmap_pages(void);
+  extern void kalloc_stats_copyout(void *);
+  extern uint64 console_dropped_chars;
+
+  if(argaddr(0, &addr) < 0)
+    return -1;
+
+  // Collect information
+  info.freemem = freemem_amount();
+  info.nproc = procnum();
+  info.uptime = ticks; // from timer.c
+  info.cow_pages = kcow_pages();
+  info.shm_pages = kshm_pages();
+  info.mmap_pages = kmmap_pages();
+  info.dropped = console_dropped_chars;
+  
+  // Copy kalloc stats
+  kalloc_stats_copyout(&info.kalloc_stats);
+
+  // Copy to user space
+  if(copyout2(addr, (char *)&info, sizeof(info)) < 0)
+    return -1;
+
+  return 0;
 }

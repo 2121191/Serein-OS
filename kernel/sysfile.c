@@ -311,6 +311,7 @@ sys_open(void)
   f->ep = ep;
   f->readable = !(omode & O_WRONLY);
   f->writable = (omode & O_WRONLY) || (omode & O_RDWR);
+  f->flags = omode;  // V3.0 (Task 12)
 
   eunlock(ep);
 
@@ -365,6 +366,9 @@ sys_pipe(void)
     return -1;
   if(pipealloc(&rf, &wf) < 0)
     return -1;
+  // V3.0 (Task 12): 显式初始化 flags 为 0，避免垃圾值被误识别为 O_NONBLOCK
+  rf->flags = 0;
+  wf->flags = 0;
   fd0 = -1;
   if((fd0 = fdalloc(rf)) < 0 || (fd1 = fdalloc(wf)) < 0){
     if(fd0 >= 0)
@@ -375,6 +379,44 @@ sys_pipe(void)
   }
   // if(copyout(p->pagetable, fdarray, (char*)&fd0, sizeof(fd0)) < 0 ||
   //    copyout(p->pagetable, fdarray+sizeof(fd0), (char *)&fd1, sizeof(fd1)) < 0){
+  if(copyout2(fdarray, (char*)&fd0, sizeof(fd0)) < 0 ||
+     copyout2(fdarray+sizeof(fd0), (char *)&fd1, sizeof(fd1)) < 0){
+    p->ofile[fd0] = 0;
+    p->ofile[fd1] = 0;
+    fileclose(rf);
+    fileclose(wf);
+    return -1;
+  }
+  return 0;
+}
+
+// V3.0 (Task 12): pipe2(int pipefd[2], int flags)
+uint64
+sys_pipe2(void)
+{
+  uint64 fdarray; // user pointer to array of two integers
+  int flags;
+  struct file *rf, *wf;
+  int fd0, fd1;
+  struct proc *p = myproc();
+
+  if(argaddr(0, &fdarray) < 0 || argint(1, &flags) < 0)
+    return -1;
+  if(pipealloc(&rf, &wf) < 0)
+    return -1;
+  
+  // Apply flags
+  rf->flags = flags;
+  wf->flags = flags;
+
+  fd0 = -1;
+  if((fd0 = fdalloc(rf)) < 0 || (fd1 = fdalloc(wf)) < 0){
+    if(fd0 >= 0)
+      p->ofile[fd0] = 0;
+    fileclose(rf);
+    fileclose(wf);
+    return -1;
+  }
   if(copyout2(fdarray, (char*)&fd0, sizeof(fd0)) < 0 ||
      copyout2(fdarray+sizeof(fd0), (char *)&fd1, sizeof(fd1)) < 0){
     p->ofile[fd0] = 0;
@@ -797,4 +839,242 @@ sys_munmap(void)
   
   // 部分 unmap 暂不支持
   return -1;
+}
+
+// V3.0: poll() I/O 多路复用
+// poll(struct pollfd *fds, nfds_t nfds, int timeout)
+// 返回: 就绪 fd 数量, 0 超时, -1 错误
+
+// Poll 事件标志 (与 poll.h 保持一致)
+#define POLLIN      0x0001
+#define POLLOUT     0x0004
+#define POLLERR     0x0008
+#define POLLHUP     0x0010
+#define POLLNVAL    0x0020
+
+#define POLL_MAX_FDS  64
+
+struct pollfd {
+    int fd;
+    short events;
+    short revents;
+};
+
+// 检查单个文件的 poll 状态
+static short
+file_poll(struct file *f)
+{
+  short revents = 0;
+  
+  if(f == 0)
+    return POLLNVAL;
+  
+  switch(f->type) {
+    case FD_PIPE: {
+      struct pipe *pi = f->pipe;
+      acquire(&pi->lock);
+      
+      // 检查可读
+      if(f->readable) {
+        if(pi->nread != pi->nwrite)  // 有数据
+          revents |= POLLIN;
+        if(!pi->writeopen)           // 写端关闭
+          revents |= POLLHUP;
+      }
+      
+      // 检查可写
+      if(f->writable) {
+        if(pi->nwrite < pi->nread + PIPESIZE)  // 有空间
+          revents |= POLLOUT;
+        if(!pi->readopen)            // 读端关闭
+          revents |= POLLERR;
+      }
+      
+      release(&pi->lock);
+      break;
+    }
+    
+    case FD_ENTRY: {
+      // 普通文件总是可读可写
+      if(f->readable)
+        revents |= POLLIN;
+      if(f->writable)
+        revents |= POLLOUT;
+      break;
+    }
+    
+    case FD_DEVICE: {
+      // 设备假设总是就绪
+      if(f->readable)
+        revents |= POLLIN;
+      if(f->writable)
+        revents |= POLLOUT;
+      break;
+    }
+    
+    default:
+      revents |= POLLNVAL;
+  }
+  
+  return revents;
+}
+
+uint64
+sys_poll(void)
+{
+  uint64 fds_addr;
+  int nfds;
+  int timeout;
+  struct pollfd fds[POLL_MAX_FDS];
+  struct proc *p = myproc();
+  extern uint ticks;
+  extern struct spinlock tickslock;
+  
+  // 获取参数
+  if(argaddr(0, &fds_addr) < 0 || argint(1, &nfds) < 0 || argint(2, &timeout) < 0)
+    return -1;
+  
+  // 验证 nfds
+  if(nfds < 0 || nfds > POLL_MAX_FDS)
+    return -1;
+  
+  if(nfds == 0) {
+    // 没有 fd，只是等待 timeout
+    if(timeout > 0) {
+      acquire(&tickslock);
+      sleep(&ticks, &tickslock);
+      release(&tickslock);
+    }
+    return 0;
+  }
+  
+  // 从用户空间复制 pollfd 数组
+  if(copyin(p->pagetable, (char*)fds, fds_addr, nfds * sizeof(struct pollfd)) < 0)
+    return -1;
+  
+  uint start_ticks;
+  acquire(&tickslock);
+  start_ticks = ticks;
+  release(&tickslock);
+  
+  int timeout_ticks = (timeout < 0) ? 0x7fffffff : timeout / 100;  // 转换 ms 到 ticks (约10ms/tick)
+  
+  while(1) {
+    int ready = 0;
+    
+    // 检查所有 fd
+    for(int i = 0; i < nfds; i++) {
+      fds[i].revents = 0;
+      
+      if(fds[i].fd < 0) {
+        // 负 fd 被忽略
+        continue;
+      }
+      
+      if(fds[i].fd >= NOFILE) {
+        fds[i].revents = POLLNVAL;
+        ready++;
+        continue;
+      }
+      
+      struct file *f = p->ofile[fds[i].fd];
+      if(f == 0) {
+        fds[i].revents = POLLNVAL;
+        ready++;
+        continue;
+      }
+      
+      short rev = file_poll(f);
+      fds[i].revents = rev & (fds[i].events | POLLERR | POLLHUP | POLLNVAL);
+      
+      if(fds[i].revents != 0)
+        ready++;
+    }
+    
+    // 有就绪的 fd
+    if(ready > 0) {
+      // 复制结果回用户空间
+      if(copyout(p->pagetable, fds_addr, (char*)fds, nfds * sizeof(struct pollfd)) < 0)
+        return -1;
+      return ready;
+    }
+    
+    // 检查超时
+    acquire(&tickslock);
+    uint current_ticks = ticks;
+    release(&tickslock);
+    
+    if(timeout == 0 || (int)(current_ticks - start_ticks) >= timeout_ticks) {
+      // 超时，复制结果并返回 0
+      if(copyout(p->pagetable, fds_addr, (char*)fds, nfds * sizeof(struct pollfd)) < 0)
+        return -1;
+      return 0;
+    }
+    
+    // 检查是否被 kill
+    if(p->killed)
+      return -1;
+    
+    // 等待一小段时间再重试
+    acquire(&tickslock);
+    sleep(&ticks, &tickslock);
+    release(&tickslock);
+  }
+}
+
+// V3.0: fcntl() 文件描述符控制
+// fcntl(fd, cmd, arg)
+// 返回: 命令结果或 -1 错误
+uint64
+sys_fcntl(void)
+{
+  int fd, cmd, arg;
+  struct proc *p = myproc();
+  struct file *f;
+  
+  if(argint(0, &fd) < 0 || argint(1, &cmd) < 0 || argint(2, &arg) < 0)
+    return -1;
+  
+  if(fd < 0 || fd >= NOFILE || (f = p->ofile[fd]) == 0)
+    return -1;
+  
+  switch(cmd) {
+    case F_DUPFD: {
+      // 复制 fd 到 >= arg 的最小空闲 fd
+      if(arg < 0 || arg >= NOFILE)
+        return -1;
+      for(int newfd = arg; newfd < NOFILE; newfd++) {
+        if(p->ofile[newfd] == 0) {
+          p->ofile[newfd] = filedup(f);
+          p->fd_flags[newfd] = 0;  // 清除 CLOEXEC
+          return newfd;
+        }
+      }
+      return -1;  // 没有空闲 fd
+    }
+    
+    case F_GETFD:
+      // 获取 fd 标志 (FD_CLOEXEC)
+      return p->fd_flags[fd];
+    
+    case F_SETFD:
+      // 设置 fd 标志
+      p->fd_flags[fd] = arg & FD_CLOEXEC;
+      return 0;
+    
+    case F_GETFL:
+      // 获取文件状态标志
+      return f->flags;
+    
+    case F_SETFL: {
+      // 设置文件状态标志 (只能改变某些标志)
+      // 只允许设置 O_APPEND, O_NONBLOCK
+      uint mask = O_APPEND | O_NONBLOCK;
+      f->flags = (f->flags & ~mask) | (arg & mask);
+      return 0;
+    }
+    
+    default:
+      return -1;  // 不支持的命令
+  }
 }

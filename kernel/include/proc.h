@@ -105,6 +105,15 @@ struct proc {
 
   // 进程组 (V2.2)
   int pgid;                        // 进程组 ID
+
+  // PID 哈希表 (V3.0)
+  struct proc *hash_next;          // 哈希链表
+
+  // V3.0 定时器
+  uint alarm_ticks;                // alarm 到期时刻 (0 = 禁用)
+
+  // V3.0: per-fd flags (FD_CLOEXEC)
+  char fd_flags[NOFILE];           // 每个 fd 的标志
 };
 
 // 进程统计信息（用于 getpinfo 系统调用）

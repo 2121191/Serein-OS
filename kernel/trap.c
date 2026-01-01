@@ -175,13 +175,8 @@ usertrap(void)
         handled = 1;
       }
     }
-    
-    if (!handled) {
-      if (mmap_handle_fault(p->pagetable, p->kpagetable, va) == 0) {
-        handled = 1;
-      }
-    }
 
+    // V3.0: Removed duplicate mmap_handle_fault call (was redundant)
     if (!handled) {
       printf("\nusertrap(): page fault failed pid=%d va=%p scause=%d\n",
              p->pid, va, r_scause());

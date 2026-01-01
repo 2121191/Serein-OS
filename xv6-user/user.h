@@ -61,12 +61,44 @@ int getgid(void);                          // V2.2
 int setgid(int gid);                       // V2.2
 int getpgid(int pid);                      // V2.2
 int setpgid(int pid, int pgid);            // V2.2
+int tcgetpgrp(void);                       // V2.2C
+int tcsetpgrp(int pgid);                   // V2.2C
+int pipe2(int fd[2], int flags);           // V3.0 (Task 12)
+int mincore(void *addr, uint64 length, unsigned char *vec); // V3.1: 查询页面是否驻留在物理内存
+int alarm(int seconds);                    // V3.0: 设置 SIGALRM 定时器
+
+// V3.0: poll I/O 多路复用
+#ifndef _POLLFD_DEFINED
+#define _POLLFD_DEFINED
+struct pollfd {
+    int fd;
+    short events;
+    short revents;
+};
+#endif
+#define POLLIN      0x0001   // 可读
+#define POLLOUT     0x0004   // 可写
+#define POLLERR     0x0008   // 错误
+#define POLLHUP     0x0010   // 挂断
+#define POLLNVAL    0x0020   // 无效 fd
+int poll(struct pollfd *fds, int nfds, int timeout);
+
+// V3.0: fcntl 文件描述符控制
+int fcntl(int fd, int cmd, int arg);
+#define F_DUPFD     0
+#define F_GETFD     1
+#define F_SETFD     2
+#define F_GETFL     3
+#define F_SETFL     4
+#define FD_CLOEXEC  1
+#define O_CLOEXEC   0x80000
 
 // V2.1: 信号常量 (与 kernel/include/signal.h 同步)
 #define SIGHUP    1
 #define SIGINT    2
 #define SIGQUIT   3
 #define SIGKILL   9
+#define SIGALRM   14  // V3.0: 定时器信号
 #define SIGTERM   15
 #define SIGCHLD   17
 #define SIGUSR1   30
