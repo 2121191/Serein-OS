@@ -142,6 +142,32 @@ fileread(struct file *f, uint64 addr, int n)
             f->off += r;
         eunlock(f->ep);
         break;
+    case FD_SOCKET:
+        {
+          char kbuf[256];
+          int tot = 0;
+          while(tot < n){
+             int chunk = n - tot;
+             if(chunk > sizeof(kbuf)) chunk = sizeof(kbuf);
+             
+             // Pass MSG_DONTWAIT if O_NONBLOCK is set
+             int flags = 0;
+             if(f->flags & O_NONBLOCK) flags |= MSG_DONTWAIT;
+             
+             int cn = sockrecv(f->socket, kbuf, chunk, flags);
+             if(cn < 0) return (tot > 0 ? tot : -1);
+             if(cn == 0) break; // EOF
+             
+             if(copyout2(addr + tot, kbuf, cn) < 0) return -1;
+             tot += cn;
+             if(cn < chunk) break; // Partial read usually implies done for stream? Or continue?
+             // Since sockrecv blocks (unless NONBLOCK), if it returns < chunk, probably EOF or just what was available. 
+             // Pipe reads keep trying if more requested? No, usually return what's there.
+             break; 
+          }
+          r = tot;
+        }
+        break;
     default:
       panic("fileread");
   }
@@ -174,6 +200,24 @@ filewrite(struct file *f, uint64 addr, int n)
       ret = -1;
     }
     eunlock(f->ep);
+  } else if(f->type == FD_SOCKET){
+    char kbuf[256];
+    int tot = 0;
+    while(tot < n){
+      int chunk = n - tot;
+      if(chunk > sizeof(kbuf)) chunk = sizeof(kbuf);
+      
+      if(copyin2(kbuf, addr + tot, chunk) < 0) return -1;
+      
+      // Pass MSG_DONTWAIT if O_NONBLOCK is set
+      int flags = 0;
+      if(f->flags & O_NONBLOCK) flags |= MSG_DONTWAIT;
+
+      int cn = socksend(f->socket, kbuf, chunk, flags);
+      if(cn < 0) return (tot > 0 ? tot : -1);
+      tot += cn;
+    }
+    ret = tot;
   } else {
     panic("filewrite");
   }

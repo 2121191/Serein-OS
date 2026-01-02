@@ -12,12 +12,17 @@
 #define SOCK_STREAM 1   // Connection-oriented (like TCP)
 #define SOCK_DGRAM  2   // Connectionless (like UDP)
 
+// Flags
+#define MSG_DONTWAIT 0x40
+
 // Socket states
-#define SS_UNCONNECTED  0
-#define SS_LISTENING    1
-#define SS_CONNECTING   2
-#define SS_CONNECTED    3
-#define SS_DISCONNECTING 4
+enum socket_state {
+  SS_UNCONNECTED = 0,
+  SS_LISTENING,
+  SS_CONNECTING,
+  SS_CONNECTED,
+  SS_DISCONNECTING
+};
 
 // Socket buffer size
 #define SOCKBUF_SIZE    512
@@ -90,7 +95,7 @@ struct socket {
 };
 
 // Global socket table
-#define NSOCKET 64
+#define NSOCKET 16
 extern struct socket sockets[NSOCKET];
 extern struct spinlock socket_table_lock;
 
@@ -107,7 +112,27 @@ int sockrecv(struct socket *so, char *buf, int len, int flags);
 void sockclose(struct socket *so);
 
 // Find socket by address (for connection matching)
+// Find socket by address (for connection matching)
 struct socket* sockfind_unix(char *path);
 struct socket* sockfind_inet(uint32 addr, uint16 port);
+int sockpoll(struct socket *so, int events);
+
+// Socket status for netstat
+struct sock_stat {
+  int inuse;
+  int domain;
+  int type;
+  int state;
+  // Local
+  uint32 laddr;
+  uint16 lport;
+  char lpath[108];
+  // Remote
+  uint32 raddr;
+  uint16 rport;
+  char rpath[108];
+  
+  uint recv_usage;
+};
 
 #endif // __SOCKET_H

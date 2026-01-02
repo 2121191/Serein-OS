@@ -237,6 +237,27 @@ Client: Done
 === UDP Test Complete ===
 ```
 
+### nettest_full 输出 (Advanced I/O Integration)
+
+验证了 Socket与文件系统的深度集成（read/write/poll）：
+
+```
+=== Net Full Integration Test ===
+[SERVER] Creating socket...
+[SERVER] Polling on listen socket...
+[CLIENT] Connected. Writing via write()...
+[SERVER] Poll successful (POLLIN set)
+[SERVER] Accepted client (fd=4)
+[SERVER] Blocking read() from client...
+[SERVER] Read via read(): Hello
+[SERVER] Writing via write()...
+[SERVER] Done
+[CLIENT] Read reply: Reply
+[CLIENT] Done
+
+=== Test Complete ===
+```
+
 ---
 
 ## 经验教训
@@ -251,11 +272,35 @@ Client: Done
 
 5. **UDP 消息边界**：在共享缓冲区模型中模拟 UDP 时，必须显式写入和读取 packet header（长度字段），否则接收端会像流一样读取数据，破坏 UDP 的数据报语义。
 
+6. **I/O 多路复用集成**：将 Socket 集成到 `poll` 和标准 `read/write` 需要在 `file.c` 和 `sysfile.c` 中显式处理 `FD_SOCKET` 类型，这是实现"一切皆文件"的关键。
+
 ---
 
 ## 后续工作
 
 - [x] 实现 AF_INET loopback (127.0.0.1) - **已完成**
 - [x] 实现 SOCK_DGRAM (UDP-like) - **已完成**
-- [ ] 添加非阻塞 socket 选项
-- [ ] 添加 `shutdown()` 系统调用
+- [x] 实现标准 I/O (read/write) 集成 - **已完成**
+- [x] 实现 Poll/Select 多路复用 - **已完成**
+- [x] 实现 sockviz 可视化监控 - **已完成**
+- [ ] 添加 `shutdown()` 系统调用 (低优先级)
+
+### sockviz 输出 (Visualization)
+
+```
++================================================================+
+|            xv6-k210 Socket Monitor (sockviz) v1.2              |
+|                                                                |
+|  Rounds: 5   / 30               Active Sockets: 5            |
++================================================================+
+
+  [DEMO] 1. Streamer (RECV_Q High)   2. Pulser (Connect/Close) 
+
+  TYPE   DOM    STATE      RECV_Q   LOCAL               REMOTE
+  ----   ---    -----      ------   -----               ------
+  STRM   UNIX   LISTEN     0        /tmp/viz.demo       
+  STRM   UNIX   ESTAB      24       (unbound)           -> /tmp/viz.demo
+  STRM   UNIX   ESTAB      12       /tmp/viz.demo       
+  STRM   UNIX   ESTAB      0        (unbound)           -> /tmp/viz.demo
+  STRM   UNIX   ESTAB      10       /tmp/viz.demo       
+```

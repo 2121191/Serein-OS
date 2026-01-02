@@ -165,6 +165,7 @@ extern uint64 sys_accept(void);      // V3.1: 接受连接
 extern uint64 sys_connect(void);     // V3.1: 发起连接
 extern uint64 sys_send(void);        // V3.1: 发送数据
 extern uint64 sys_recv(void);        // V3.1: 接收数据
+extern uint64 sys_netstat(void);     // V3.1: Socket 状态查询
 
 static uint64 (*syscalls[])(void) = {
   [SYS_fork]        sys_fork,
@@ -241,6 +242,7 @@ static uint64 (*syscalls[])(void) = {
   [SYS_connect]     sys_connect,
   [SYS_send]        sys_send,
   [SYS_recv]        sys_recv,
+  [SYS_netstat]     sys_netstat,
 };
 
 static char *sysnames[] = {
@@ -315,6 +317,7 @@ static char *sysnames[] = {
   [SYS_connect]     "connect",
   [SYS_send]        "send",
   [SYS_recv]        "recv",
+  [SYS_netstat]     "netstat",
 };
 
 void

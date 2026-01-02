@@ -71,6 +71,26 @@ Buffer: [##....] head=2 tail=0
 Produced: 5  Consumed: 0
 ```
 
+### 5. sockviz - 网络 Socket 监控
+
+**作用**：类似 netstat 的实时网络状态看板
+
+**演示场景** (Demo Mode)：
+- **Streamer**: 模拟高吞吐量单向传输，展示内核缓冲区积压 (RECV_Q)
+- **Pulser**: 模拟间歇性连接，展示 Socket 生命周期管理
+- **Echo**: 模拟双向交互
+
+**演示效果**：
+```
++================================================================+
+|            xv6-k210 Socket Monitor (sockviz) v1.2              |
+|  Rounds: 5   / 30               Active Sockets: 5            |
++================================================================+
+  TYPE   DOM    STATE      RECV_Q   LOCAL               REMOTE
+  STRM   UNIX   LISTEN     0        /tmp/viz.demo       
+  STRM   UNIX   ESTAB      24       (unbound)           -> /tmp/viz.demo
+```
+
 ## 过程中的问题修复
 
 ### sys_sleep 信号处理问题
@@ -109,7 +129,8 @@ while(ticks - ticks0 < n){
 | xv6-user/memviz.c | 内存管理演示 | ~300 |
 | xv6-user/pollwatch.c | poll I/O 演示 | ~300 |
 | xv6-user/ipcband.c | IPC 综合演示 | ~320 |
+| xv6-user/sockviz.c | 网络状态监控 | ~350 |
 
 ## 总结
 
-这 4 个演示程序覆盖了操作系统课程中的核心概念，可以用于课堂演示或自学理解。所有演示都支持 Ctrl+C 中断，并会自动清理资源。
+这 5 个演示程序覆盖了操作系统课程中的核心概念，可以用于课堂演示或自学理解。所有演示都支持 Ctrl+C 中断，并会自动清理资源。

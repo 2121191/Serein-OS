@@ -14,6 +14,7 @@
 #include "include/sleeplock.h"
 #include "include/file.h"
 #include "include/pipe.h"
+#include "include/socket.h"
 #include "include/fcntl.h"
 #include "include/fat32.h"
 #include "include/syscall.h"
@@ -911,6 +912,10 @@ file_poll(struct file *f)
         revents |= POLLOUT;
       break;
     }
+
+    case FD_SOCKET:
+      revents = sockpoll(f->socket, ~0);
+      break;
     
     default:
       revents |= POLLNVAL;

@@ -89,3 +89,4 @@ entry("accept");
 entry("connect");
 entry("send");
 entry("recv");
+entry("netstat");

@@ -237,6 +237,8 @@ UPROGS=\
 	$U/_simplesock\
 	$U/_inettest\
 	$U/_udptest\
+	$U/_nettest_full\
+	$U/_sockviz\
 
 
 

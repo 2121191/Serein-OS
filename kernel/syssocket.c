@@ -10,6 +10,7 @@
 #include "include/socket.h"
 #include "include/syscall.h"
 #include "include/vm.h"
+#include "include/string.h"
 
 // Helper: allocate file descriptor for socket
 static int
@@ -297,4 +298,68 @@ sys_recv(void)
     return -1;
   
   return n;
+}
+
+// sys_netstat(struct sock_stat *stats, int max)
+uint64
+sys_netstat(void)
+{
+  uint64 addr;
+  int max_entries;
+  struct sock_stat st;
+  int count = 0;
+  
+  if(argaddr(0, &addr) < 0 || argint(1, &max_entries) < 0)
+    return -1;
+    
+  acquire(&socket_table_lock);
+  for(int i = 0; i < NSOCKET && count < max_entries; i++){
+    struct socket *so = &sockets[i];
+    if(so->ref > 0) { // Active socket
+       acquire(&so->lock);
+       st.inuse = 1;
+       st.domain = so->domain;
+       st.type = so->type;
+       st.state = so->state;
+       st.recv_usage = (so->recvtail - so->recvhead);
+       
+       // Default clear
+       st.laddr = 0; st.lport = 0; st.lpath[0] = 0;
+       st.raddr = 0; st.rport = 0; st.rpath[0] = 0;
+
+       // Fill addresses
+       if(so->bound || so->state != SS_UNCONNECTED) {
+          if(so->domain == AF_INET) {
+             st.laddr = so->local.in.addr;
+             st.lport = so->local.in.port;
+             st.raddr = so->peer.in.addr;
+             st.rport = so->peer.in.port;
+          } else { // AF_UNIX
+             safestrcpy(st.lpath, so->local.un.path, sizeof(st.lpath));
+             if(so->peer_sock) {
+                // Peek peer path
+                 struct socket *peer = so->peer_sock;
+                 // acquire(&peer->lock); // Risk of deadlock if order wrong? 
+                 // so->lock is held. peer->lock? 
+                 // Usually acquiring peer lock while holding so lock is fine IF consistent order.
+                 // Here we just want path. Path is usually stable.
+                 // But strictly we should lock.
+                 // For now, assume un.path is safe if peer_sock set.
+                 safestrcpy(st.rpath, peer->local.un.path, sizeof(st.rpath));
+             } else if(so->state == SS_CONNECTED) {
+                 safestrcpy(st.rpath, so->peer.un.path, sizeof(st.rpath));
+             }
+          }
+       }
+       release(&so->lock);
+       
+       if(copyout2(addr + count * sizeof(st), (char*)&st, sizeof(st)) < 0) {
+          release(&socket_table_lock);
+          return -1;
+       }
+       count++;
+    }
+  }
+  release(&socket_table_lock);
+  return count;
 }

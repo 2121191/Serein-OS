@@ -9,6 +9,7 @@
 #include "include/socket.h"
 #include "include/kalloc.h"
 #include "include/string.h"
+#include "include/poll.h"
 
 // Global socket table
 struct socket sockets[NSOCKET];
@@ -357,6 +358,12 @@ sockrecv(struct socket *so, char *buf, int len, int flags)
       release(&so->lock);
       return 0;
     }
+
+    if(flags & MSG_DONTWAIT){
+      release(&so->lock);
+      return -1;
+    }
+
     if(myproc()->killed){
       release(&so->lock);
       return -1;
@@ -425,4 +432,51 @@ sockclose(struct socket *so)
   }
   
   sockfree(so);
+}
+
+// Poll for events
+int
+sockpoll(struct socket *so, int events)
+{
+  int revents = 0;
+  
+  acquire(&so->lock);
+  
+  if(so->state == SS_LISTENING){
+    // Readable if new connection pending
+    if(so->pending_head != so->pending_tail){
+      revents |= POLLIN;
+    }
+  } else if(so->state == SS_CONNECTED || so->state == SS_DISCONNECTING){
+    // Readable if data available
+    if(so->recvhead != so->recvtail || so->recv_closed){
+      revents |= (POLLIN | POLLRDNORM);
+    }
+    if(so->recv_closed){
+      revents |= POLLHUP;
+    }
+    
+    // Writable if peer has space
+    struct socket *peer = so->peer_sock;
+    if(peer){
+      acquire(&peer->lock);
+      if(peer->recv_closed){
+        revents |= POLLHUP; // Peer closed
+      } else {
+        if(peer->recvtail - peer->recvhead < SOCKBUF_SIZE){
+           revents |= (POLLOUT | POLLWRNORM);
+        }
+      }
+      release(&peer->lock);
+    } else if(so->type == SOCK_STREAM) {
+       // Connected stream but no peer? Broken pipe
+       revents |= POLLERR;
+    } else {
+       // UDP with no peer set? Always writable (will fail on send)
+       revents |= POLLOUT;
+    }
+  }
+  
+  release(&so->lock);
+  return revents;
 }

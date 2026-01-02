@@ -116,6 +116,7 @@ int reboot(void);
 #define SOCK_DGRAM  2
 #define INADDR_LOOPBACK 0x7f000001
 #define INADDR_ANY      0x00000000
+#define MSG_DONTWAIT    0x40
 
 #ifndef __SOCKADDR_DEFINED
 #define __SOCKADDR_DEFINED
@@ -144,6 +145,24 @@ int accept(int sockfd, struct sockaddr *addr, int *addrlen);
 int connect(int sockfd, struct sockaddr *addr, int addrlen);
 int send(int sockfd, void *buf, int len, int flags);
 int recv(int sockfd, void *buf, int len, int flags);
+
+struct sock_stat {
+  int inuse;
+  int domain;
+  int type;
+  int state;
+  // Local
+  unsigned int laddr;
+  unsigned short lport;
+  char lpath[108];
+  // Remote
+  unsigned int raddr;
+  unsigned short rport;
+  char rpath[108];
+  
+  unsigned int recv_usage;
+};
+int netstat(struct sock_stat *stats, int max);
 
 // Clone flags
 #define CLONE_VM      0x00000100

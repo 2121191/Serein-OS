@@ -76,6 +76,7 @@
 #define SYS_connect     72  // V3.1: 发起连接
 #define SYS_send        73  // V3.1: 发送数据
 #define SYS_recv        74  // V3.1: 接收数据
+#define SYS_netstat     75  // V3.1: Socket 状态查询
 
 // V3.0: clone() 标志
 #define CLONE_VM        0x00000100  // 共享虚拟内存
