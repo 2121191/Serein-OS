@@ -256,6 +256,8 @@ runcmd(struct cmd *cmd)
 #define HISTORY_SIZE 16
 #define KEY_UP    0xE2
 #define KEY_DOWN  0xE3
+#define KEY_LEFT  0xE0
+#define KEY_RIGHT 0xE1
 #define INPUT_BUF_SIZE 128
 #define BACKSPACE 0x08
 
@@ -457,18 +459,20 @@ getcmd(char *buf, int nbuf)
   fprintf(2, "-> %s $ ", mycwd);
   memset(buf, 0, nbuf);
   
-  int i = 0; // Current buffer index
+  int len = 0; // Current length of the command
+  int pos = 0; // Current cursor position (0 to len)
   char c;
   
   while(1){
     if(read(0, &c, 1) != 1) { // EOF
-      if(i > 0) return 0; // Return partial line if any
+      if(len > 0) return 0; // Return partial line if any
       return -1;
     }
     
     // Tab Completion
     if(c == '\t') {
-      completion(buf, &i);
+      completion(buf, &len);
+      pos = len; // Tab completion always moves to end
       continue;
     }
 
@@ -479,73 +483,113 @@ getcmd(char *buf, int nbuf)
       // Reprint prompt
       fprintf(2, "-> %s $ ", mycwd);
       // Reprint current buffer
-      for(int j=0; j<i; j++) {
-        fprintf(2, "%c", buf[j]);
-      }
+      fprintf(2, "%s", buf);
+      // Move cursor back to pos
+      int i;
+      for(i=len; i>pos; i--) fprintf(2, "\b");
       continue;
     }
 
     // Backspace Handling (0x7f)
-    if(c == '\x7f') {
-      if(i > 0) {
-        i--;
-        buf[i] = 0;
-        // Erase on screen
-        fprintf(2, "\b \b");
+    if(c == '\x7f' || c == BACKSPACE) {
+      if(pos > 0) {
+        // Shift buffer left
+        len--;
+        pos--;
+        // memmove(buf+pos, buf+pos+1, len-pos); // No standard memmove
+        int i;
+        for(i=pos; i<len; i++) buf[i] = buf[i+1];
+        buf[len] = 0;
+        
+        // Update screen
+        fprintf(2, "\b"); // Move back to pos
+        fprintf(2, "%s", buf+pos); // Print tail
+        fprintf(2, " "); // Erase last char
+        fprintf(2, "\b"); // Move back one step
+        // Move back to pos
+        for(i=len; i>pos; i--) fprintf(2, "\b");
       }
       continue;
     }
 
-    // V3.1: History Navigation
-    if(c == (char)KEY_UP || c == (char)KEY_DOWN) {
-      char *hist_cmd = 0;
+    // Navigation and History
+    if(c == (char)KEY_UP || c == (char)KEY_DOWN || c == (char)KEY_LEFT || c == (char)KEY_RIGHT) {
       
-      if(c == (char)KEY_UP) {
-        hist_cmd = history_prev();
+      if(c == (char)KEY_LEFT) {
+        if(pos > 0) {
+          pos--;
+          fprintf(2, "\b");
+        }
+      } else if (c == (char)KEY_RIGHT) {
+        if(pos < len) {
+          fprintf(2, "%c", buf[pos]);
+          pos++;
+        }
       } else {
-        hist_cmd = history_next();
-      }
-      
-      if(hist_cmd) {
-        // Erase current line from screen
-        while(i > 0) {
-          fprintf(2, "\b \b");
-          i--;
+        // History Up/Down
+        char *hist_cmd = 0;
+        if(c == (char)KEY_UP) {
+          hist_cmd = history_prev();
+        } else {
+          hist_cmd = history_next();
         }
         
-        // Copy historical command
-        memset(buf, 0, nbuf);
-        strcpy(buf, hist_cmd);
-        i = strlen(buf);
-        
-        // Print new line
-        fprintf(2, "%s", buf);
+        if(hist_cmd) {
+          // Erase current line from screen
+          // Move to start
+          int i;
+          for(i=0; i<pos; i++) fprintf(2, "\b");
+          // Overwrite with spaces
+          for(i=0; i<len; i++) fprintf(2, " ");
+          // Move back to start
+          for(i=0; i<len; i++) fprintf(2, "\b");
+          
+          // Copy historical command
+          memset(buf, 0, nbuf);
+          strcpy(buf, hist_cmd);
+          len = strlen(buf);
+          pos = len;
+          
+          // Print new line
+          fprintf(2, "%s", buf);
+        }
       }
       continue;
     }
 
     if(c == '\n' || c == '\r'){
-      buf[i] = 0;
+      buf[len] = 0;
+      // Move to end if not already
+      int i;
+      for(i=pos; i<len; i++) fprintf(2, "%c", buf[i]); // Actually just newline is enough usually, but to be clean
+      
       fprintf(2, "\n");
       // Add to history if not empty
-      if(i > 0) history_add(buf);
+      if(len > 0) history_add(buf);
       return 0;
     }
     
-    if(c == BACKSPACE || c == '\x7f'){
-      if(i > 0){
-        i--;
-        fprintf(2, "\b \b"); // Erase character visually
-        buf[i] = 0;
-      }
-      continue;
-    }
-    
-    if(i < nbuf - 1){
-      // V3.1: Only store printable chars, echo is handled by kernel console
-      if((unsigned char)c >= 32 || c == '\t') {
-        buf[i++] = c;
-        // fprintf(2, "%c", c); // Double echo fix: Kernel echoes, shell should not
+    // Normal Character Insertion
+    if(len < nbuf - 1){
+      if((unsigned char)c >= 32) {
+        // Shift buffer right if inserting in middle
+        if(pos < len) {
+          int i;
+          for(i=len; i>pos; i--) buf[i] = buf[i-1];
+        }
+        buf[pos] = c;
+        len++;
+        pos++;
+        buf[len] = 0;
+        
+        // Update screen: Kernel already echoed the char.
+        // We only need to redraw the tail and restore cursor for mid-line insertion.
+        if(pos < len) {
+           fprintf(2, "%s", buf+pos);
+           // Restore cursor
+           int i;
+           for(i=len; i>pos; i--) fprintf(2, "\b");
+        }
       }
     }
   }
@@ -554,7 +598,7 @@ getcmd(char *buf, int nbuf)
 int
 main(void)
 {
-  static char buf[100];
+  static char buf[INPUT_BUF_SIZE];
   int fd;
 
   // Ensure that three file descriptors are open.

@@ -221,6 +221,10 @@ consoleintr(int c)
         c = 0xE2; // KEY_UP
       } else if (c == 'B') { // DOWN Arrow
         c = 0xE3; // KEY_DOWN
+      } else if (c == 'D') { // LEFT Arrow
+        c = 0xE0; // KEY_LEFT
+      } else if (c == 'C') { // RIGHT Arrow
+        c = 0xE1; // KEY_RIGHT
       } else {
         // Unknown sequence, ignore entire sequence
         break;
@@ -237,7 +241,7 @@ consoleintr(int c)
       #endif
       
       // echo back to the user.
-      // Don't echo special key codes (0xE2/0xE3) or Tab/Ctrl+L (handled by shell)
+      // Don't echo special key codes (0xE0-0xE3) or Tab/Ctrl+L (handled by shell)
       if (c < 0xE0 && c != '\t' && c != 0x0C) {
         consputc(c);
       }
@@ -245,14 +249,10 @@ consoleintr(int c)
       // store for consumption by consoleread().
       cons.buf[cons.e++ % INPUT_BUF] = c;
 
-      // V3.1: Wake up on special keys (Up/Down/Tab) so shell can respond immediately
-      if(c == '\n' || c == C('D') || cons.e == cons.r+INPUT_BUF || 
-         c == (char)0xE2 || c == (char)0xE3 || c == '\t' || c == 0x0C){
-        // wake up consoleread() if a whole line (or end-of-file)
-        // has arrived, or special key pressed.
-        cons.w = cons.e;
-        wakeup(&cons.r);
-      }
+      // V3.1: Wake up on ANY input so shell can react/echo immediately (Raw-ish mode)
+      // This allows shell to handle character insertion/deletion mid-line
+      cons.w = cons.e;
+      wakeup(&cons.r);
     }
     else {
       // 缓冲已满，丢弃字符并记录
