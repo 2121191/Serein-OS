@@ -87,7 +87,20 @@ ipcband
 - 缓冲区状态 `[####....]` 实时变化
 - 最终 Produced=20, Consumed=20
 
-**预期时间**：约 20 秒
+---
+
+### sockviz - 网络 Socket 监控
+
+```bash
+sockviz demo
+```
+
+**看什么**：
+- **Streamer**: 模拟高吞吐量单向传输，展示内核缓冲区积压 (RECV_Q)
+- **Pulser**: 模拟间歇性连接，展示 Socket 生命周期管理
+- **Active Sockets**: 数量在 3-5 之间动态波动
+
+**预期时间**：约 60 秒 (20 轮)
 
 ---
 
