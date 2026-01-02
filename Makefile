@@ -226,6 +226,11 @@ UPROGS=\
 	$U/_halt\
 	$U/_reboot\
 	$U/_consoletest\
+	$U/_procshow\
+	$U/_stressload\
+	$U/_memviz\
+	$U/_pollwatch\
+	$U/_ipcband\
 
 
 

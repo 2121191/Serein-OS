@@ -1,0 +1,115 @@
+# xv6-k210 V3.0 可视化演示开发工作报告
+
+## 概述
+
+本次开发为 xv6-k210 V3.0 添加了 4 个交互式可视化演示程序，用于直观展示操作系统的核心功能。这些演示可以帮助理解内核中调度器、内存管理、I/O 多路复用和进程间通信等机制的工作原理。
+
+## 开发内容
+
+### 1. procshow - Stride 调度器可视化
+
+**作用**：实时展示 Stride 调度算法的公平性
+
+**工作原理**：
+- 启动 5 个 CPU 密集型 worker 进程，每个进程设置不同的 tickets（权重）
+- 通过 ASCII 进度条实时显示各 worker 获得的 CPU 时间比例
+- 验证：tickets 为 5:10:20:40:10 的进程，CPU 时间比例会收敛到相同比例
+
+**演示效果**：
+```
+Worker1 [██████████----------]  196% (tickets=5)
+Worker2 [████████████████████]  393% (tickets=10)  
+Worker3 [████████████████████]  781% (tickets=20)
+```
+
+### 2. memviz - 内存管理可视化
+
+**作用**：展示 Lazy Allocation 和 Copy-on-Write 机制
+
+**包含两个子演示**：
+- **Lazy Allocation**：调用 sbrk 扩展堆空间，但页面直到首次访问时才真正分配
+- **Copy-on-Write**：fork 后父子进程共享页面，写入时才触发页面复制
+
+**演示效果**：
+```
+[Phase 1] sbrk(4096) - 请求 1 页
+  Before write: 物理页未分配
+  Writing to page...
+  After write:  物理页已分配 ✓
+```
+
+### 3. pollwatch - I/O 多路复用可视化
+
+**作用**：展示 poll() 系统调用同时监控多个文件描述符
+
+**工作原理**：
+- 创建 4 个管道，每个有独立的 writer 进程
+- 使用 poll() 同时监控所有管道的读端
+- 实时显示哪些管道有数据可读、哪些已关闭
+
+**演示效果**：
+```
+  PIPE     FD   EVENTS    STATUS
+  Alpha     3   POLLIN    [DATA READY!]
+  Beta      4   POLLIN    [waiting...]
+  Gamma     5   POLLIN    [HANGUP]
+```
+
+### 4. ipcband - IPC 综合演示
+
+**作用**：展示多种 IPC 机制协同工作
+
+**使用的 IPC 机制**：
+- 共享内存（shm）：8 槽环形缓冲区
+- 信号量（sem）：生产者-消费者同步
+- 管道（pipe）：状态报告
+
+**演示效果**：
+```
+Producer ---[5]---> Buffer
+Buffer: [##....] head=2 tail=0
+Produced: 5  Consumed: 0
+```
+
+## 过程中的问题修复
+
+### sys_sleep 信号处理问题
+
+**问题**：运行 procshow 等演示时，按 Ctrl+C 无法中断程序
+
+**原因**：`sys_sleep()` 的循环只检查 `killed` 标志，不检查 `sig_pending`。当 SIGINT 信号到达时，进程被唤醒，但因为没检查 `sig_pending`，又继续循环等待，导致信号永远无法被处理。
+
+**修复**（kernel/sysproc.c）：
+```c
+while(ticks - ticks0 < n){
+    if(p->killed) { ... }
+    // 新增：检查待处理信号
+    if(p->sig_pending & ~p->sig_blocked){
+        release(&tickslock);
+        return 0;  // 提前返回，让信号被处理
+    }
+    sleep(&ticks, &tickslock);
+}
+```
+
+### printf 格式兼容问题
+
+**问题**：`%-8s` 等格式说明符在 xv6 中显示为原始字符串
+
+**原因**：xv6 的 printf 实现不支持带宽度的格式说明符
+
+**解决**：改用手动填充的方式实现左对齐
+
+## 新增文件清单
+
+| 文件 | 说明 | 代码行数 |
+|------|------|---------|
+| xv6-user/procshow.c | Stride 调度器演示 | ~230 |
+| xv6-user/stressload.c | CPU 压力工具 | ~50 |
+| xv6-user/memviz.c | 内存管理演示 | ~300 |
+| xv6-user/pollwatch.c | poll I/O 演示 | ~300 |
+| xv6-user/ipcband.c | IPC 综合演示 | ~320 |
+
+## 总结
+
+这 4 个演示程序覆盖了操作系统课程中的核心概念，可以用于课堂演示或自学理解。所有演示都支持 Ctrl+C 中断，并会自动清理资源。

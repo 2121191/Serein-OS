@@ -268,15 +268,22 @@ sys_sleep(void)
 {
   int n;
   uint ticks0;
+  struct proc *p = myproc();
 
   if(argint(0, &n) < 0)
     return -1;
   acquire(&tickslock);
   ticks0 = ticks;
   while(ticks - ticks0 < n){
-    if(myproc()->killed){
+    if(p->killed){
       release(&tickslock);
       return -1;
+    }
+    // V3.1: 检查是否有待处理信号（如 SIGINT），若有则提前返回
+    // 这样 usertrap 可以调用 check_signals() 处理信号
+    if(p->sig_pending & ~p->sig_blocked){
+      release(&tickslock);
+      return 0;  // 提前返回，让信号被处理
     }
     sleep(&ticks, &tickslock);
   }
