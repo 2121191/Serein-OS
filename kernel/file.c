@@ -11,6 +11,7 @@
 #include "include/fat32.h"
 #include "include/file.h"
 #include "include/pipe.h"
+#include "include/socket.h"
 #include "include/fcntl.h"
 #include "include/stat.h"
 #include "include/proc.h"
@@ -89,6 +90,8 @@ fileclose(struct file *f)
     pipeclose(ff.pipe, ff.writable);
   } else if(ff.type == FD_ENTRY){
     eput(ff.ep);
+  } else if(ff.type == FD_SOCKET){
+    sockclose(ff.socket);  // V3.1: socket close
   } else if (ff.type == FD_DEVICE) {
 
   }

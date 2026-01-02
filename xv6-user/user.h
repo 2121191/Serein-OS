@@ -1,3 +1,6 @@
+#ifndef __USER_H
+#define __USER_H
+
 #include "kernel/include/types.h"
 #include "kernel/include/stat.h"
 #include "kernel/include/fcntl.h"
@@ -106,6 +109,42 @@ void exit_group(int status);
 int halt(void);
 int reboot(void);
 
+// V3.1: Socket API
+#define AF_UNIX     1
+#define AF_INET     2
+#define SOCK_STREAM 1
+#define SOCK_DGRAM  2
+#define INADDR_LOOPBACK 0x7f000001
+#define INADDR_ANY      0x00000000
+
+#ifndef __SOCKADDR_DEFINED
+#define __SOCKADDR_DEFINED
+struct sockaddr {
+  short family;
+  char data[14];
+};
+
+struct sockaddr_un {
+  short family;
+  char path[108];
+};
+
+struct sockaddr_in {
+  short family;
+  unsigned short port;
+  unsigned int addr;
+  char zero[8];
+};
+#endif // __SOCKADDR_DEFINED
+
+int socket(int domain, int type, int protocol);
+int bind(int sockfd, struct sockaddr *addr, int addrlen);
+int listen(int sockfd, int backlog);
+int accept(int sockfd, struct sockaddr *addr, int *addrlen);
+int connect(int sockfd, struct sockaddr *addr, int addrlen);
+int send(int sockfd, void *buf, int len, int flags);
+int recv(int sockfd, void *buf, int len, int flags);
+
 // Clone flags
 #define CLONE_VM      0x00000100
 #define CLONE_FS      0x00000200
@@ -144,3 +183,5 @@ void free(void*);
 int atoi(const char*);
 int memcmp(const void *, const void *, uint);
 void *memcpy(void *, const void *, uint);
+
+#endif // __USER_H

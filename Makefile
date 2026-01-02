@@ -44,7 +44,9 @@ OBJS += \
   $K/console.o \
   $K/null.o \
   $K/zero.o \
-  $K/pid_hash.o
+  $K/pid_hash.o \
+  $K/socket.o \
+  $K/syssocket.o
 
 ifeq ($(platform), k210)
 OBJS += \
@@ -231,6 +233,8 @@ UPROGS=\
 	$U/_memviz\
 	$U/_pollwatch\
 	$U/_ipcband\
+	$U/_socktest\
+	$U/_simplesock\
 
 
 

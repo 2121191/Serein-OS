@@ -69,6 +69,13 @@
 #define SYS_exit_group  65  // V3.0: 退出整个线程组
 #define SYS_halt        66  // V3.1: 关机
 #define SYS_reboot      67  // V3.1: 重启
+#define SYS_socket      68  // V3.1: 创建 socket
+#define SYS_bind        69  // V3.1: 绑定地址
+#define SYS_listen      70  // V3.1: 监听连接
+#define SYS_accept      71  // V3.1: 接受连接
+#define SYS_connect     72  // V3.1: 发起连接
+#define SYS_send        73  // V3.1: 发送数据
+#define SYS_recv        74  // V3.1: 接收数据
 
 // V3.0: clone() 标志
 #define CLONE_VM        0x00000100  // 共享虚拟内存
