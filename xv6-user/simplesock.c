@@ -58,10 +58,10 @@ int main(int argc, char *argv[]) {
   
   // Parent: server continues
   printf("8. Calling accept()...\n");
-  write(1, "PRE_ACCEPT\n", 11);
+  // write(1, "PRE_ACCEPT\n", 11);
   addrlen = sizeof(addr);
   clientfd = accept(sockfd, (struct sockaddr*)&addr, &addrlen);
-  write(1, "POST_ACCEPT\n", 12);
+  // write(1, "POST_ACCEPT\n", 12);
   printf("9. accept() returned %d\n", clientfd);
   
   if(clientfd < 0) {

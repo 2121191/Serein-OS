@@ -177,6 +177,8 @@ Client: Done
 
 ### simplesock 输出
 
+### simplesock 输出
+
 ```
 === Simple Socket Test ===
 1. Creating socket... socket() returned 3
@@ -193,6 +195,48 @@ Client: Done
 === Test Complete ===
 ```
 
+### inettest 输出 (IPv4 Loopback)
+
+```
+=== IPv4 Loopback Socket Test ===
+
+[SERVER] Creating socket...
+[SERVER] Socket created (fd=3)
+[SERVER] Binding to 127.0.0.1:8080...
+[SERVER] Bound successfully
+[SERVER] Listening...
+[SERVER] Waiting for connection...
+[CLIENT] Creating socket...
+[CLIENT] Socket created (fd=3)
+[CLIENT] Connecting to 127.0.0.1:8080...
+[CLIENT] Connected!
+[SERVER] Client connected (fd=4)
+[CLIENT] Sending: Hello via loopback!
+[SERVER] Received: Hello via loopback!
+[SERVER] Echoed message back
+[CLIENT] Received echo: Hello via loopback!
+[SERVER] Done
+[CLIENT] Done
+### udptest 输出 (UDP/DGRAM)
+
+```
+=== UDP/DGRAM Socket Test ===
+
+[SERVER] Creating DGRAM socket...
+[SERVER] Binding to /tmp/udp.sock...
+[SERVER] Waiting for packets...
+[CLIENT] Creating DGRAM socket...
+[CLIENT] Connecting to /tmp/udp.sock...
+[CLIENT] Sending Packet 1...
+[CLIENT] Sending Packet 2...
+[SERVER] Packet 1 received (5 bytes): Hello
+[SERVER] Packet 2 received (5 bytes): World
+[SERVER] Done
+[CLIENT] Done
+
+=== UDP Test Complete ===
+```
+
 ---
 
 ## 经验教训
@@ -205,11 +249,13 @@ Client: Done
 
 4. **分层调试策略**：使用简化测试程序（simplesock）隔离问题比在复杂程序中调试更高效。
 
+5. **UDP 消息边界**：在共享缓冲区模型中模拟 UDP 时，必须显式写入和读取 packet header（长度字段），否则接收端会像流一样读取数据，破坏 UDP 的数据报语义。
+
 ---
 
 ## 后续工作
 
-- [ ] 实现 AF_INET loopback (127.0.0.1)
+- [x] 实现 AF_INET loopback (127.0.0.1) - **已完成**
+- [x] 实现 SOCK_DGRAM (UDP-like) - **已完成**
 - [ ] 添加非阻塞 socket 选项
-- [ ] 实现 SOCK_DGRAM (UDP-like)
 - [ ] 添加 `shutdown()` 系统调用

@@ -201,8 +201,6 @@ sockconnect(struct socket *so, struct sockaddr *addr, int addrlen)
   struct socket *listener;
   struct socket *accepted;
   
-  if(so->type != SOCK_STREAM)
-    return -1;
   if(so->state != SS_UNCONNECTED)
     return -1;
   
@@ -220,13 +218,33 @@ sockconnect(struct socket *so, struct sockaddr *addr, int addrlen)
     return -1;
   }
   
-  if(!listener || listener->state != SS_LISTENING){
+  // Verify listener
+  if(!listener || !listener->bound){
     release(&socket_table_lock);
     return -1;
   }
   
+  // For TCP, listener must be in LISTENING state
+  if(so->type == SOCK_STREAM && listener->state != SS_LISTENING){
+    release(&socket_table_lock);
+    return -1;
+  }
+  
+  // For UDP, we just need a bound target
+  if(so->type == SOCK_DGRAM){
+    if(listener->type != SOCK_DGRAM){
+      release(&socket_table_lock);
+      return -1;
+    }
+    so->peer_sock = listener;
+    so->state = SS_CONNECTED;
+    release(&socket_table_lock);
+    return 0;
+  }
+  
   release(&socket_table_lock);
   
+  // TCP Logic continues here...
   // Create accepted socket (server side)
   accepted = sockalloc();
   if(!accepted)
@@ -271,6 +289,7 @@ socksend(struct socket *so, char *buf, int len, int flags)
 {
   struct socket *peer;
   int i;
+  int hdr = len; // Packet length header for DGRAM
   
   if(so->state != SS_CONNECTED)
     return -1;
@@ -281,18 +300,41 @@ socksend(struct socket *so, char *buf, int len, int flags)
   
   acquire(&peer->lock);
   
-  for(i = 0; i < len; i++){
-    // Wait if buffer full
-    while(peer->recvtail - peer->recvhead >= SOCKBUF_SIZE){
-      if(peer->recv_closed || myproc()->killed){
-        release(&peer->lock);
-        return i > 0 ? i : -1;
-      }
-      wakeup(&peer->recvhead);  // Wake reader
-      sleep(&peer->recvtail, &peer->lock);
+  if(so->type == SOCK_DGRAM){
+    // UDP: Write length packet first (atomic-ish write check)
+    if(SOCKBUF_SIZE - (peer->recvtail - peer->recvhead) < len + sizeof(int)){
+      // Drop packet if no space
+      release(&peer->lock);
+      return -1; 
     }
-    peer->recvbuf[peer->recvtail % SOCKBUF_SIZE] = buf[i];
-    peer->recvtail++;
+    
+    // Write Header
+    char *hdr_ptr = (char*)&hdr;
+    for(i=0; i<sizeof(int); i++){
+      peer->recvbuf[peer->recvtail % SOCKBUF_SIZE] = hdr_ptr[i];
+      peer->recvtail++;
+    }
+    
+    // Write Data
+    for(i = 0; i < len; i++){
+      peer->recvbuf[peer->recvtail % SOCKBUF_SIZE] = buf[i];
+      peer->recvtail++;
+    }
+  } else {
+    // TCP: Stream write
+    for(i = 0; i < len; i++){
+      // Wait if buffer full
+      while(peer->recvtail - peer->recvhead >= SOCKBUF_SIZE){
+        if(peer->recv_closed || myproc()->killed){
+          release(&peer->lock);
+          return i > 0 ? i : -1;
+        }
+        wakeup(&peer->recvhead);  // Wake reader
+        sleep(&peer->recvtail, &peer->lock);
+      }
+      peer->recvbuf[peer->recvtail % SOCKBUF_SIZE] = buf[i];
+      peer->recvtail++;
+    }
   }
   
   wakeup(&peer->recvhead);  // Wake reader
@@ -305,6 +347,7 @@ int
 sockrecv(struct socket *so, char *buf, int len, int flags)
 {
   int i;
+  int packet_len = 0;
   
   acquire(&so->lock);
   
@@ -321,17 +364,45 @@ sockrecv(struct socket *so, char *buf, int len, int flags)
     sleep(&so->recvhead, &so->lock);
   }
   
-  // Read from buffer
-  for(i = 0; i < len; i++){
-    if(so->recvhead == so->recvtail)
-      break;
-    buf[i] = so->recvbuf[so->recvhead % SOCKBUF_SIZE];
-    so->recvhead++;
+  if(so->type == SOCK_DGRAM){
+    // Read packet header
+    char *hdr_ptr = (char*)&packet_len;
+    for(i=0; i<sizeof(int); i++){
+      if(so->recvhead == so->recvtail) break; // Should not happen if protocol kept
+      hdr_ptr[i] = so->recvbuf[so->recvhead % SOCKBUF_SIZE];
+      so->recvhead++;
+    }
+    
+    // Truncate if buffer too small
+    int read_len = (len < packet_len) ? len : packet_len;
+    
+    for(i = 0; i < read_len; i++){
+      buf[i] = so->recvbuf[so->recvhead % SOCKBUF_SIZE];
+      so->recvhead++;
+    }
+    
+    // Skip remaining packet bytes if any
+    if(packet_len > read_len){
+      so->recvhead += (packet_len - read_len);
+    }
+    
+    wakeup(&so->recvtail);
+    release(&so->lock);
+    return read_len;
+    
+  } else {
+    // TCP: Stream read
+    for(i = 0; i < len; i++){
+      if(so->recvhead == so->recvtail)
+        break;
+      buf[i] = so->recvbuf[so->recvhead % SOCKBUF_SIZE];
+      so->recvhead++;
+    }
+    
+    wakeup(&so->recvtail);  // Wake writer
+    release(&so->lock);
+    return i;
   }
-  
-  wakeup(&so->recvtail);  // Wake writer
-  release(&so->lock);
-  return i;
 }
 
 // Close socket
@@ -341,12 +412,16 @@ sockclose(struct socket *so)
   struct socket *peer = so->peer_sock;
   
   if(peer){
-    acquire(&peer->lock);
-    peer->recv_closed = 1;
-    peer->peer_sock = 0;
-    wakeup(&peer->recvhead);
-    wakeup(&peer->recvtail);
-    release(&peer->lock);
+    if(so->type == SOCK_STREAM){
+      acquire(&peer->lock);
+      peer->recv_closed = 1;
+      peer->peer_sock = 0;
+      wakeup(&peer->recvhead);
+      wakeup(&peer->recvtail);
+      release(&peer->lock);
+    } 
+    // For UDP, we just detach, don't close peer's input
+    // because peer might be receiving from others
   }
   
   sockfree(so);

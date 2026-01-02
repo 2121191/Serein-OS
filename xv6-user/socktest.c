@@ -48,9 +48,10 @@ void server_process(void) {
   addrlen = sizeof(client_addr);
   printf("Server: calling accept...\n");
   clientfd = accept(sockfd, (struct sockaddr*)&client_addr, &addrlen);
-  // Use write() directly to bypass printf buffering
-  write(1, "ACCEPT_RET\n", 11);
-  printf("Server: accept returned %d\n", clientfd);
+  
+  // Debug output (commented out for clean run)
+  // write(1, "ACCEPT_RET\n", 11);
+  // printf("Server: accept returned %d\n", clientfd);
   if(clientfd < 0){
     printf("Server: accept() failed\n");
     close(sockfd);

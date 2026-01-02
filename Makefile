@@ -235,6 +235,8 @@ UPROGS=\
 	$U/_ipcband\
 	$U/_socktest\
 	$U/_simplesock\
+	$U/_inettest\
+	$U/_udptest\
 
 
 
