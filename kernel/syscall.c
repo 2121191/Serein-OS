@@ -158,6 +158,14 @@ extern uint64 sys_futex(void);       // V3.0: 快速用户空间互斥锁
 extern uint64 sys_exit_group(void);  // V3.0: 退出线程组
 extern uint64 sys_halt(void);        // V3.1: 关机
 extern uint64 sys_reboot(void);      // V3.1: 重启
+extern uint64 sys_socket(void);      // V3.1: 创建 socket
+extern uint64 sys_bind(void);        // V3.1: 绑定地址
+extern uint64 sys_listen(void);      // V3.1: 监听连接
+extern uint64 sys_accept(void);      // V3.1: 接受连接
+extern uint64 sys_connect(void);     // V3.1: 发起连接
+extern uint64 sys_send(void);        // V3.1: 发送数据
+extern uint64 sys_recv(void);        // V3.1: 接收数据
+extern uint64 sys_netstat(void);     // V3.1: Socket 状态查询
 
 static uint64 (*syscalls[])(void) = {
   [SYS_fork]        sys_fork,
@@ -227,6 +235,14 @@ static uint64 (*syscalls[])(void) = {
   [SYS_exit_group]  sys_exit_group,
   [SYS_halt]        sys_halt,
   [SYS_reboot]      sys_reboot,
+  [SYS_socket]      sys_socket,
+  [SYS_bind]        sys_bind,
+  [SYS_listen]      sys_listen,
+  [SYS_accept]      sys_accept,
+  [SYS_connect]     sys_connect,
+  [SYS_send]        sys_send,
+  [SYS_recv]        sys_recv,
+  [SYS_netstat]     sys_netstat,
 };
 
 static char *sysnames[] = {
@@ -294,6 +310,14 @@ static char *sysnames[] = {
   [SYS_exit_group]  "exit_group",
   [SYS_halt]        "halt",
   [SYS_reboot]      "reboot",
+  [SYS_socket]      "socket",
+  [SYS_bind]        "bind",
+  [SYS_listen]      "listen",
+  [SYS_accept]      "accept",
+  [SYS_connect]     "connect",
+  [SYS_send]        "send",
+  [SYS_recv]        "recv",
+  [SYS_netstat]     "netstat",
 };
 
 void

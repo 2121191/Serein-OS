@@ -18,6 +18,7 @@
 #include "include/shm.h"
 #include "driver/driver.h"
 #include "include/file.h"
+#include "include/socket.h"
 
 #ifndef QEMU
 #include "include/sdcard.h"
@@ -114,6 +115,7 @@ main(unsigned long hartid, unsigned long dtb_pa)
     
     binit();         
     fileinit();
+    sockinit();      // V3.1: Initialize socket subsystem
     
     // Initialize device files
     nullinit();      // /dev/null

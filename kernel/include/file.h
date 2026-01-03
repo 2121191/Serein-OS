@@ -1,12 +1,15 @@
 #ifndef __FILE_H
 #define __FILE_H
 
+struct socket;  // Forward declaration
+
 struct file {
-  enum { FD_NONE, FD_PIPE, FD_ENTRY, FD_DEVICE } type;
+  enum { FD_NONE, FD_PIPE, FD_ENTRY, FD_DEVICE, FD_SOCKET } type;
   int ref; // reference count
   char readable;
   char writable;
-  struct pipe *pipe; // FD_PIPE
+  struct pipe *pipe;     // FD_PIPE
+  struct socket *socket; // FD_SOCKET (V3.1)
   struct dirent *ep;
   uint off;          // FD_ENTRY
   short major;       // FD_DEVICE
