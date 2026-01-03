@@ -200,7 +200,7 @@ wakeup(&cons.r);
 if (c < 0xE0) consputc(c);
 ```
 
-### Shell 层 (`xv6-user/sh.c`)
+### Shell 层 (`serein-user/sh.c`)
 
 **数据结构**：
 - `len`：命令长度

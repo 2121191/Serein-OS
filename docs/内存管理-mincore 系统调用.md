@@ -9,8 +9,8 @@
 - 系统调用号：`kernel/include/sysnum.h`（`SYS_mincore`）
 - 系统调用注册：`kernel/syscall.c`
 - 系统调用实现：`kernel/sysproc.c`（`sys_mincore()`）
-- 用户态接口：`xv6-user/user.h`（`int mincore(void *addr, uint64 length, unsigned char *vec);`）
-- 用户态测试：`xv6-user/tests/mincore_test.c`
+- 用户态接口：`serein-user/user.h`（`int mincore(void *addr, uint64 length, unsigned char *vec);`）
+- 用户态测试：`serein-user/tests/mincore_test.c`
 
 ---
 

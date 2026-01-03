@@ -1,7 +1,7 @@
 #ifndef __SIGNAL_H
 #define __SIGNAL_H
 
-// xv6-k210 信号系统 (V2.1)
+// Serein 信号系统 (V2.1)
 // 简化版 POSIX 信号定义
 
 // 信号定义

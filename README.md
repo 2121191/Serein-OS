@@ -16,7 +16,7 @@ Run xv6-riscv on k210 board
 
 ```
 
-![run-k210](./img/xv6-k210_run.gif)  
+![run-k210](./img/Serein_run.gif)  
 
 ## Dependencies
 + `k210 board` or `qemu-system-riscv64`
@@ -24,7 +24,7 @@ Run xv6-riscv on k210 board
 
 ## Installation
 ```bash
-git clone https://github.com/HUST-OS/xv6-k210
+git clone https://github.com/HUST-OS/Serein
 ```
 
 ## Run on k210 board
@@ -36,10 +36,10 @@ ls /dev/ | grep USB
 Build the kernel and user program:
 
 ```bash
-cd xv6-k210
+cd Serein
 make build
 ```
-Instead of the original file system, xv6-k210 runs with FAT32. You might need an SD card with FAT32 format.  
+Instead of the original file system, Serein runs with FAT32. You might need an SD card with FAT32 format.  
 Your SD card should NOT keep a partition table. To start `shell` and other user programs, you need to copy them into your SD card.  
 First, connect and mount your SD card (SD card reader required).
 ```bash
@@ -87,7 +87,7 @@ In addition, `shell` supports some shortcut keys as below:
 - Ctrl-D -- end of file (EOF)  
 - Ctrl-P -- print process list  
 
-## Add my programs on xv6-k210
+## Add my programs on Serein
 1. Make a new C source file in `xv6-user/` like `myprog.c`, and put your codes;
 2. You can include `user.h` to use the functions declared in it, such as `open`, `gets` and `printf`;
 3. Add a line "`$U/_myprog\`" in `Makefile` as below:

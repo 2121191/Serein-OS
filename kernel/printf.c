@@ -1,7 +1,7 @@
 //
 // formatted console output -- printf, panic.
 //
-// 本文件以 xv6-k210-main 的 printf.c 为基础，合并学长项目的分级日志系统。
+// 本文件以华科 xv6-k210 的 printf.c 为基础，合并学长项目的分级日志系统。
 //
 
 #include <stdarg.h>

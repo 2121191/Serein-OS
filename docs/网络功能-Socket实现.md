@@ -1,8 +1,8 @@
-# xv6-k210 V3.1 Socket API 实现报告
+# Serein V3.1 Socket API 实现报告
 
 ## 概述
 ### 翁
-记录 xv6-k210 V3.1 网络栈 Phase 1 的实现，包括 Unix Domain Socket 实现和调试过程中发现的 Bug 修复。
+记录 Serein V3.1 网络栈 Phase 1 的实现，包括 Unix Domain Socket 实现和调试过程中发现的 Bug 修复。
 
 ## 实现内容
 
@@ -13,8 +13,8 @@
 | `kernel/include/socket.h` | Socket 结构和常量定义 |
 | `kernel/socket.c` | Socket 核心实现 |
 | `kernel/syssocket.c` | Socket 系统调用封装 |
-| `xv6-user/socktest.c` | Unix Domain Socket 测试程序 |
-| `xv6-user/simplesock.c` | 简化的单进程 Socket 测试 |
+| `serein-user/socktest.c` | Unix Domain Socket 测试程序 |
+| `serein-user/simplesock.c` | 简化的单进程 Socket 测试 |
 
 ### 修改的文件
 
@@ -25,8 +25,8 @@
 | `kernel/syscall.c` | 注册 Socket 系统调用处理函数 |
 | `kernel/file.c` | 在 `fileclose()` 中处理 socket 关闭 |
 | `kernel/main.c` | 添加 `sockinit()` 初始化调用 |
-| `xv6-user/user.h` | 添加用户态 Socket API 声明 |
-| `xv6-user/usys.pl` | 添加系统调用存根生成 |
+| `serein-user/user.h` | 添加用户态 Socket API 声明 |
+| `serein-user/usys.pl` | 添加系统调用存根生成 |
 | `Makefile` | 添加 socket.o、syssocket.o 编译 |
 
 ---
@@ -289,7 +289,7 @@ Client: Done
 
 ```
 +================================================================+
-|            xv6-k210 Socket Monitor (sockviz) v1.2              |
+|            Serein Socket Monitor (sockviz)              |
 |                                                                |
 |  Rounds: 5   / 30               Active Sockets: 5            |
 +================================================================+

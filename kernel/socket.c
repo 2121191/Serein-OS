@@ -1,4 +1,4 @@
-// socket.c - Simplified Socket implementation for xv6-k210
+// socket.c - Simplified Socket implementation for Serein OS
 // Uses shared buffer model similar to pipes
 
 #include "include/types.h"

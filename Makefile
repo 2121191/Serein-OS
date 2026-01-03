@@ -3,7 +3,7 @@ platform	:= qemu
 # mode := debug
 mode := release
 K=kernel
-U=xv6-user
+U=serein-user
 T=target
 
 OBJS =

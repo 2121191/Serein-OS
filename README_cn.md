@@ -16,7 +16,7 @@
      
 ```
 
-<!-- ![run-k210](./img/xv6-k210_on_k210.gif)   -->
+<!-- ![run-k210](./img/Serein_on_k210.gif)   -->
 
 ## 依赖
 + `k210` 开发板或者 `qemu-system-riscv64`
@@ -24,7 +24,7 @@
 
 ## 下载
 ```bash
-git clone https://github.com/HUST-OS/xv6-k210
+git clone https://github.com/HUST-OS/Serein
 ```
 
 ## <a id="title_k210">在 k210 开发板上运行</a>
@@ -36,7 +36,7 @@ ls /dev/ | grep USB
 然后运行以下命令，以编译内核和用户程序：    
 
 ```bash
-cd xv6-k210
+cd Serein
 make build
 ```
 
