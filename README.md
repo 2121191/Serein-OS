@@ -16,7 +16,11 @@ An enhanced RISC-V operating system kernel based on HUST xv6-k210
   -(((---(((--------  
 ```
 
-![Serein Demo](./img/serein_demo.gif)
+<div align="center">
+  <img src="./img/serein_demo.gif" alt="Serein Demo" width="600">
+  <br>
+  <em>Demo: Project build, system boot, and usertests regression test</em>
+</div>
 
 ## Overview
 

@@ -16,7 +16,11 @@
   -(((---(((--------  
 ```
 
-![Serein Demo](./img/serein_demo.gif)
+<div align="center">
+  <img src="./img/serein_demo.gif" alt="Serein Demo" width="600">
+  <br>
+  <em>演示：项目构建、系统启动、usertests 回归测试全过程</em>
+</div>
 
 ## 项目简介
 
