@@ -56,6 +56,18 @@ usertests
 # 最后显示 "ALL TESTS PASSED" 表示全部通过
 ```
 
+测试套件包含 **70+ 个测试用例**，其中我们新增了 20+ 个自定义测试（位于 `serein-user/tests/`）：
+
+| 类别 | 测试程序 |
+|------|----------|
+| **内存管理** | `cowstress`, `mmaptest`, `mincore_test` |
+| **信号系统** | `sigtest`, `sigtest2`, `alarmtest` |
+| **信号量** | `semtest`, `semtest2`, `semstress` |
+| **共享内存** | `shmtest1`, `shmtest2`, `shmstress` |
+| **线程/并发** | `threadtest`, `polltest`, `nbtest` |
+| **文件系统** | `fcntltest`, `chmodtest`, `testdev`, `exttest` |
+| **进程/权限** | `idtest`, `pgtest` |
+
 ---
 
 ## 新增特性

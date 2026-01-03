@@ -56,6 +56,18 @@ usertests
 # "ALL TESTS PASSED" indicates success
 ```
 
+The test suite contains **70+ test cases**, including 20+ custom tests we added (in `serein-user/tests/`):
+
+| Category | Tests |
+|----------|-------|
+| **Memory** | `cowstress`, `mmaptest`, `mincore_test` |
+| **Signals** | `sigtest`, `sigtest2`, `alarmtest` |
+| **Semaphores** | `semtest`, `semtest2`, `semstress` |
+| **Shared Memory** | `shmtest1`, `shmtest2`, `shmstress` |
+| **Threads/Concurrency** | `threadtest`, `polltest`, `nbtest` |
+| **File System** | `fcntltest`, `chmodtest`, `testdev`, `exttest` |
+| **Process/Permissions** | `idtest`, `pgtest` |
+
 ---
 
 ## New Features
