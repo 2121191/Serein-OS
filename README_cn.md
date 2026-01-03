@@ -184,6 +184,8 @@ pollwatch     # poll() I/O 多路复用演示
 
 ## 致谢
 
+> Serein 一词源自法语，意为“傍晚的晴空雨”，感谢朋友的同名电影所带来的启发。
+
 - [HUST-OS/xv6-k210](https://github.com/HUST-OS/xv6-k210) - 项目基础
 - [MIT xv6](https://github.com/mit-pdos/xv6-riscv) - 原版 xv6
 

@@ -184,6 +184,8 @@ The following features are inherited and preserved from xv6-k210 baseline:
 
 ## Acknowledgments
 
+> The name "Serein" comes from French, meaning "fine rain falling from a cloudless sky at sunset". Thanks to a friend's film of the same name for the inspiration.
+
 - [HUST-OS/xv6-k210](https://github.com/HUST-OS/xv6-k210) - Project baseline
 - [MIT xv6](https://github.com/mit-pdos/xv6-riscv) - Original xv6
 
