@@ -1,0 +1,51 @@
+# 内核原理-内存管理-多核内存分配统计（nsteal）
+
+## 1. 工作概述
+原版xv6-k210 的物理页分配器更关注“正确分配/正确释放”，但对**多核下页面分配的跨核行为**缺少可观测性：当某个 CPU 分配压力较大、其本地空闲页不足时，是否会从其它 CPU “借/偷”页面、这种跨核取页出现得有多频繁，原版缺少直接的统计与分析手段。
+
+为解决这一问题，我们通过修改 `kernel/kalloc.c`：
+- 实现了 **per-CPU freelist + 跨核 steal** 的分配路径（本地空则从其它 CPU freelist 取页）；
+- 并在此基础上补充了 per-CPU 统计信息，尤其是 `nsteal`，用于量化“跨核偷页”行为；
+
+相关代码位置：
+- 分配器与统计：`kernel/kalloc.c`
+- 数据结构：`kernel/include/sysinfo.h`（`struct kalloc_stat` / `sysinfo.kalloc_stats[NCPU]`）
+- 系统调用输出：`kernel/sysproc.c`（`sys_sysinfo()` 调用 `kalloc_stats_copyout()`）
+- 用户态展示：`xv6-user/vmstat.c`
+
+---
+
+## 2. 问题发现 
+在多核系统中，物理页分配器很容易遇到“负载不均衡”的情况：
+- 某些 CPU 上进程更多、内存分配更频繁，本地空闲页更快耗尽；
+- 若分配器只依赖本地 freelist，会出现“某核缺页但其它核仍有空闲页”的资源错配；
+- 若引入跨核取页，则需要知道这种行为发生频率，以判断是否带来额外锁竞争与性能抖动。
+
+---
+
+## 3. 解决方案
+### 3.1 跨核 steal 分配路径
+该实现的分配逻辑是：
+- `kalloc()` 优先从当前 CPU 的 freelist 取页；
+- 若本地 freelist 为空，则进入 `ksteal(cid)`：遍历其它 CPU 的 freelist，尝试取走一页作为本次分配结果。
+
+
+### 3.2 nsteal 统计口径
+为了量化跨核 steal 行为，我们在 per-CPU 分配器状态中加入 `nsteal`：
+- **每当 `ksteal(cid)` 成功从其它 CPU 的 freelist 取到一页，就对当前 CPU 的 `nsteal++`。**
+
+同时也提供了配套的统计字段：
+- `nalloc`：该 CPU 分配页次数
+- `nfree`：该 CPU 释放页次数
+
+这些统计同样来源于 `kalloc.c` 内部的 per-CPU 状态。
+
+### 3.3 导出与观测：sysinfo
+为便于用户态观测，该实现把统计导出到 `sysinfo`：
+- `kernel/include/sysinfo.h` 中定义 `struct kalloc_stat { nalloc, nfree, nsteal }`；
+- `sysinfo` 返回 `kalloc_stats[NCPU]`；
+- `sys_sysinfo()` 调用 `kalloc_stats_copyout()` 将内核统计复制到返回结构体。
+---
+
+## 4. 小结 (Conclusion)
+综上，张尚昆同学通过修改 `kalloc.c` 实现了多核下的跨核 steal 分配路径，并加入 `nsteal` 等 per-CPU 统计指标；随后通过 `sysinfo` 将其导出到用户态，实现了对多核内存分配负载均衡的直观观测。

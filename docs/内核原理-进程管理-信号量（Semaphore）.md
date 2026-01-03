@@ -1,0 +1,66 @@
+# 内核原理-进程管理-信号量（Semaphore）
+
+## 1. 工作概述 
+原版xv6-k210 中缺少一个可直接供用户态使用的“阻塞式同步原语”。为支持典型的父子进程同步、生产者/消费者等并发场景，张尚昆同学在内核中新增了一个 **计数信号量（counting semaphore）模块**，并通过系统调用向用户态提供接口。
+
+本次新增/改动的核心文件：
+- 内核模块：`kernel/sem.c`、`kernel/include/sem.h`
+- 系统调用实现：`kernel/sysproc.c`
+- 系统调用注册：`kernel/syscall.c`、`kernel/include/sysnum.h`
+- 用户态接口：`xv6-user/user.h`
+- 用户态测试：`xv6-user/tests/semtest.c`、`xv6-user/tests/semtest2.c`
+
+---
+
+## 2. 问题发现 (Problem)
+在原版系统中，用户程序即使能使用 `fork()` 等机制创建并发流程，也缺少一个“可复用、可阻塞等待”的同步对象：
+- 仅有内核内部的 `sleep/wakeup` 原语，用户态难以直接组织出通用的“资源计数 + 阻塞等待 + 唤醒”语义。
+- 并发测试（例如父子进程的严格顺序执行）缺少一个简单可靠的同步手段。
+
+---
+
+## 3. 解决方案 
+### 3.1 内核信号量表与计数语义（已实现）
+该实现维护一个全局信号量表 `sems[NSEM]`，每个信号量对象包含：
+- `count`：计数值
+- `ref`：引用计数（用于判断槽位是否正在被使用）
+- `lock`：保护 `count` 与等待过程
+- `waiters[]/nwaiters`：等待队列（用于在进程退出时清理）
+
+信号量的核心操作为：
+- **P 操作 `sem_wait`**：先 `count--`；若 `count < 0` 则调用 `sleep(sem, &sem->lock)` 阻塞。
+- **V 操作 `sem_post`**：先 `count++`；若 `count <= 0` 则调用 `wakeup(sem)` 唤醒等待者。
+
+这些操作在 `kernel/sem.c` 中实现，复用 xv6 的 `sleep/wakeup` 机制，以 `sem` 指针作为 sleep channel。
+
+### 3.2 系统调用接口
+为让用户态可直接使用，新增了 5 个系统调用（用户态提供同名封装）：
+- `sem_open(initial_value)`：分配信号量槽位并返回 `sem_id`
+- `sem_wait(sem_id)`：P 操作，必要时阻塞
+- `sem_post(sem_id)`：V 操作，必要时唤醒
+- `sem_close(sem_id)`：关闭信号量（释放/回收槽位）
+- `sem_getvalue(sem_id, &value)`：读取当前 `count`
+
+
+### 3.3 退出安全：清理等待队列（
+在联调过程中容易出现的一个问题是：若某进程在 `sem_wait` 阻塞期间退出，会导致它残留在等待队列语义中，进而造成其它进程长期等待。
+
+为避免该问题，该实现加入：
+- `sem_cleanup_proc(struct proc *p)`：遍历所有信号量，将退出进程从 `waiters[]` 中移除，并对 `count` 做补偿。
+- 在 `exit()` 流程中调用 `sem_cleanup_proc`，确保进程退出后不会遗留“等待状态”。
+
+---
+
+## 4. 测试与验证 
+我们为了验证该模块，新增了两个用户态测试：
+
+- `semtest.c`：单进程计数验证
+  - 验证 `sem_open/sem_wait/sem_post/sem_getvalue/sem_close` 的基本语义及计数变化。
+
+- `semtest2.c`：父子进程阻塞/唤醒验证
+  - 使用 `fork()` 构造“一个 wait 阻塞、另一个 post 唤醒”的流程，验证阻塞与唤醒语义正确。
+
+---
+
+## 5. 小结 (Conclusion)
+综上，张尚昆同学在原 xv6-k210 的基础上新增了一个可在用户态使用的计数信号量子系统：提供 5 个系统调用、内核信号量表、阻塞/唤醒语义以及进程退出清理机制，并通过 `semtest/semtest2` 覆盖单进程与父子进程同步场景完成验证。
