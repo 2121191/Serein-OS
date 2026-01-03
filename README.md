@@ -1,6 +1,7 @@
-# XV6-RISCV On K210
-Run xv6-riscv on k210 board  
-[English](./README.md) | [中文](./README_cn.md)   
+# Serein OS
+
+An enhanced RISC-V operating system kernel based on HUST xv6-k210  
+[English](./README.md) | [中文](./README_cn.md)
 
 ```
   _________                     .__        
@@ -12,114 +13,164 @@ Run xv6-riscv on k210 board
                                            
       |\__/,|   (`\      v3.1
     _.|o o  |_   ) )     QEMU Port
-  -(((---(((--------     
-
+  -(((---(((--------  
 ```
 
-![run-k210](./img/Serein_run.gif)  
+![Serein Demo](./img/serein_demo.gif)
 
-## Dependencies
-+ `k210 board` or `qemu-system-riscv64`
-+ RISC-V Toolchain: [riscv-gnu-toolchain](https://github.com/riscv/riscv-gnu-toolchain.git)
+## Overview
 
-## Installation
-```bash
-git clone https://github.com/HUST-OS/Serein
-```
+Serein is an enhanced operating system kernel based on HUST-OS/xv6-k210. We ported the original kernel to **QEMU v6.2+** with standard **OpenSBI** boot support. While preserving all original features, we added approximately 10,000 lines of kernel code implementing **75 system calls** covering modern OS features.
 
-## Run on k210 board
-First you need to connect your k210 board to your PC.  
-And check the `USB serial port` (In my situation it will be `ttyUSB0`):  
-```bash
-ls /dev/ | grep USB
-```
-Build the kernel and user program:
+## Requirements
+
+- `qemu-system-riscv64` (v6.2+)
+- RISC-V GCC toolchain: [riscv-gnu-toolchain](https://github.com/riscv/riscv-gnu-toolchain)
+
+## Quick Start
 
 ```bash
-cd Serein
-make build
-```
-Instead of the original file system, Serein runs with FAT32. You might need an SD card with FAT32 format.  
-Your SD card should NOT keep a partition table. To start `shell` and other user programs, you need to copy them into your SD card.  
-First, connect and mount your SD card (SD card reader required).
-```bash
-ls /dev/ # To check your SD device
-mount <your SD device name> <mount point>
-make sdcard dst="SD card mount point"
-umount <mount point>
-```
-Then, insert the SD card to your k210 board and run:
-```bash
+# Clone the repository
+git clone https://github.com/2121191/Serein-OS
+cd Serein-OS
+
+# Build filesystem image (requires sudo)
+make fs
+
+# Run
 make run
 ```
-Sometimes you should change the `USB serial port`:  
-```bash
-make run k210-serialport=`Your-USB-port`(default by ttyUSB0)
-```
-Ps: Most of the k210-port in Linux is ttyUSB0, if you use Windows or Mac OS, this doc 
-may help you: [maixpy-doc](https://maixpy.sipeed.com/zh/get_started/env_install_driver.html#)  
 
-## Run on qemu-system-riscv64
-First, make sure `qemu-system-riscv64` is installed on your system.  
-Second, make a disk image file with FAT32 file system.
-```bash
-make fs
-```
-It will generate a disk image file `fs.img`, and compile some user programs like `shell` then copy them into the `fs.img`.  
-As long as the `fs.img` exists, you don't need to do this every time before running, unless you want to update it.
+Press `Ctrl+A` then `X` to exit QEMU.
 
-Finally, start running.
+## Running Tests
+
 ```bash
-make run platform=qemu
+# Run full regression test suite in xv6 shell
+usertests
+
+# "ALL TESTS PASSED" indicates success
 ```
 
-Ps: Press Ctrl + A then X to quit qemu.
+---
 
-## About shell
+## New Features
 
-The shell commands are user programs, too. Those program should be put in a "/bin" directory in your SD card or the `fs.img`.  
-Now we support a few useful commands, such as `cd`, `ls`, `cat` and so on.
+### Memory Management
 
-In addition, `shell` supports some shortcut keys as below:
+| Feature | Description |
+|---------|-------------|
+| **Copy-on-Write** | Share pages on fork, copy on write. Fork 10MB process: 80ms → 5ms |
+| **Lazy Allocation** | Demand paging for heap, allocate on first access |
+| **mmap/munmap** | Memory-mapped files with MAP_SHARED and MAP_PRIVATE |
+| **mincore** | Query page residency status |
+| **Shared Memory** | Named multi-page shared memory with refcount and unlink semantics |
 
-- Ctrl-H -- backspace  
-- Ctrl-U -- kill a line  
-- Ctrl-D -- end of file (EOF)  
-- Ctrl-P -- print process list  
+### Process Scheduling
 
-## Add my programs on Serein
-1. Make a new C source file in `xv6-user/` like `myprog.c`, and put your codes;
-2. You can include `user.h` to use the functions declared in it, such as `open`, `gets` and `printf`;
-3. Add a line "`$U/_myprog\`" in `Makefile` as below:
-    ```Makefile
-    UPROGS=\
-        $U/_init\
-        $U/_sh\
-        $U/_cat\
-        ...
-        $U/_myprog\      # Don't ignore the leading '_'
-    ```
-4. Then make:
-    ```bash
-    make userprogs
-    ```
-    Now you might see `_myprog` in `xv6-user/` if no error detected. Finally you need to copy it into your SD (see [here](#run-on-k210-board))
-     or FS image (see [here](#run-on-qemu-system-riscv64)).
+| Feature | Description |
+|---------|-------------|
+| **Stride Scheduling** | Fair-share scheduling with configurable tickets |
+| **POSIX Semaphores** | sem_open/wait/post/close implementation |
+| **Signal System** | Full POSIX signals, 32 signals + custom handlers |
+| **clone/futex** | Thread support with CLONE_VM/CLONE_FILES/CLONE_THREAD |
 
-## Progress
-- [x] Multicore boot
-- [x] Bare-metal printf
-- [x] Memory alloc
-- [x] Page Table
-- [x] Timer interrupt
-- [x] S mode extern interrupt
-- [x] Receive uarths message
-- [x] SD card driver
-- [x] Process management
-- [x] File system
-- [x] User program
-- [X] Steady keyboard input(k210)
+### Networking (V3.1)
 
-## TODO
-Fix the bugs of U-mode exception on k210.
+| Feature | Description |
+|---------|-------------|
+| **BSD Socket API** | socket/bind/listen/accept/connect/send/recv |
+| **Unix Domain Socket** | Local IPC via kernel buffer |
+| **IPv4 Loopback** | 127.0.0.1 with port dispatch |
+| **UDP** | Connectionless datagram with message boundary |
 
+### I/O & File System
+
+| Feature | Description |
+|---------|-------------|
+| **poll()** | I/O multiplexing for multiple file descriptors |
+| **alarm()** | Timer with SIGALRM for timeout functionality |
+| **fcntl()** | File descriptor control: F_DUPFD/F_GETFL/F_SETFL |
+| **Non-blocking I/O** | O_NONBLOCK support, pipe2 syscall |
+| **FAT32 Optimization** | Sparse cluster index, O(n) → O(1) random access |
+| **/dev/null, /dev/zero** | Special device file support |
+
+### Shell Enhancement
+
+**New Features**:
+
+| Feature | Description |
+|---------|-------------|
+| **Tab Completion** | Auto-complete commands and filenames |
+| **Command History** | ↑/↓ to browse last 16 commands |
+| **Cursor Editing** | ←/→ to move cursor, inline insert/delete |
+| **Ctrl+C** | Send SIGINT signal to terminate current process |
+| **Ctrl+L** | Quick clear screen |
+| **halt/reboot** | Soft shutdown and reboot commands |
+
+**Original Shortcuts** (inherited from xv6-k210):
+
+| Shortcut | Description |
+|----------|-------------|
+| **Ctrl+H** | Backspace |
+| **Ctrl+U** | Kill current line |
+| **Ctrl+D** | End of file (EOF) |
+| **Ctrl+P** | Print process list |
+
+### Visualization Demos
+
+```bash
+procshow      # Stride scheduler visualization
+memviz        # Memory management demo (Lazy + CoW)
+sockviz demo  # Socket network monitor
+ipcband       # IPC producer-consumer demo
+pollwatch     # poll() I/O multiplexing demo
+```
+
+### Other Improvements
+
+- **PID Hash Table**: kill/wait from O(N) to O(1)
+- **Buffer Buckets**: Multi-core I/O contention optimization
+- **Multi-level Logging**: LOG_DEBUG/LOG_INF/LOG_WARN/LOG_ERROR
+- **Console Overflow Monitor**: Track dropped characters
+
+---
+
+## Original Features Preserved
+
+The following features are inherited and preserved from xv6-k210 baseline:
+
+- **Multi-core Boot**: RISC-V dual-core SMP boot support
+- **FAT32 File System**: Replaces original xv6 FS, supports standard SD card format
+- **Process Management**: fork/exec/wait/exit/kill full process lifecycle
+- **Virtual Memory**: Page table management, user/kernel address space isolation
+- **Interrupt Handling**: Timer interrupts, S-mode external interrupts
+- **UART Serial**: UARTHS serial data transmission and reception
+- **Shell**: Command parsing, pipes, redirection support
+- **Basic Commands**: ls, cat, echo, grep, mkdir, rm, wc, find, etc.
+
+## Adding User Programs
+
+1. Create a C file in `serein-user/`, e.g., `myprog.c`
+2. Include `user.h` for system calls
+3. Add `$U/_myprog\` to `UPROGS` in `Makefile`
+4. Run `make userprogs`
+
+## Version History
+
+| Version | Key Features |
+|---------|--------------|
+| V1.0 | CoW, Lazy Allocation, Stride scheduling, POSIX semaphores |
+| V2.0 | mmap, signals, shared memory, PID hash table |
+| V2.3 | Buffer buckets, non-blocking I/O, FAT32 optimization |
+| V3.0 | poll, alarm, fcntl, clone/futex, shell enhancement |
+| V3.1 | BSD Socket, Unix Domain, UDP, sockviz visualization |
+
+## Acknowledgments
+
+- [HUST-OS/xv6-k210](https://github.com/HUST-OS/xv6-k210) - Project baseline
+- [MIT xv6](https://github.com/mit-pdos/xv6-riscv) - Original xv6
+
+## License
+
+MIT License
