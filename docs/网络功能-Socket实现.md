@@ -1,8 +1,8 @@
 # xv6-k210 V3.1 Socket API 实现报告
 
 ## 概述
-
-本文档记录了 xv6-k210 V3.1 网络栈 Phase 1 的实现工作，包括 Unix Domain Socket 的完整实现和调试过程中发现并修复的关键 Bug。
+### 翁
+记录 xv6-k210 V3.1 网络栈 Phase 1 的实现，包括 Unix Domain Socket 实现和调试过程中发现的 Bug 修复。
 
 ## 实现内容
 
