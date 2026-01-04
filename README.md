@@ -1,7 +1,8 @@
 ---
 > **Competition Entry**  
 > **School**: Hefei University of Technology (合肥工业大学)  
-> **Team**: 宇宙警备队
+> **Team**: 宇宙警备队  
+> **Repository**: https://github.com/2121191/Serein-OS
 ---
 
 # Serein OS
