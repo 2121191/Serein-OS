@@ -1,3 +1,10 @@
+---
+> **Competition Entry**  
+> **School**: Hefei University of Technology (合肥工业大学)  
+> **Team**: 宇宙警备队  
+> **Repository**: https://github.com/2121191/Serein-OS
+---
+
 # Serein OS
 
 An enhanced RISC-V operating system kernel based on HUST xv6-k210  
@@ -15,12 +22,6 @@ An enhanced RISC-V operating system kernel based on HUST xv6-k210
     _.|o o  |_   ) )     QEMU Port
   -(((---(((--------  
 ```
-
-<div align="center">
-  <img src="./img/serein_demo.gif" alt="Serein Demo" width="600">
-  <br>
-  <em>Demo: Project build, system boot, and usertests regression test</em>
-</div>
 
 ## Overview
 
@@ -46,6 +47,14 @@ make run
 ```
 
 Press `Ctrl+A` then `X` to exit QEMU.
+
+## Demo
+
+<div align="center">
+  <img src="./img/serein_demo.gif" alt="Serein Demo" width="600">
+  <br>
+  <em>Demo: Project build, system boot, and usertests regression test</em>
+</div>
 
 ## Running Tests
 

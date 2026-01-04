@@ -96,6 +96,8 @@ int cow_handle(pagetable_t pagetable, pagetable_t kpagetable, uint64 va)
 }
 ```
 
+![Copy-on-Write 工作流程图](../img/Copy-on-Write%20工作流程图.png)
+
 ### 2. Lazy Allocation
 
 sbrk 扩展堆时只更新 p->sz，不分配物理页：
@@ -144,6 +146,8 @@ int lazy_alloc(pagetable_t pagetable, pagetable_t kpagetable,
 }
 ```
 
+![Lazy Allocation 工作流程图](../img/Lazy%20Allocation%20工作流程图.png)
+
 ### 3. mmap/munmap
 
 mmap 把文件映射到进程地址空间的特定区域 (MMAPBASE = 0x40000000 开始)。
@@ -166,6 +170,8 @@ struct proc {
   struct vma vmas[MAX_VMA];  // 16个VMA槽位
 };
 ```
+
+![mmap 地址空间布局图](../img/mmap%20地址空间布局图.png)
 
 #### sys_mmap 实现
 

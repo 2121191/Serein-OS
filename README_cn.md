@@ -1,3 +1,10 @@
+---
+> **参赛信息**  
+> **院校**: 合肥工业大学  
+> **队伍**: 宇宙警备队  
+> **仓库地址**: https://github.com/2121191/Serein-OS
+---
+
 # Serein OS
 
 基于华科 xv6-k210 深度开发的增强版 RISC-V 操作系统内核  
@@ -15,12 +22,6 @@
     _.|o o  |_   ) )     QEMU Port
   -(((---(((--------  
 ```
-
-<div align="center">
-  <img src="./img/serein_demo.gif" alt="Serein Demo" width="600">
-  <br>
-  <em>演示：项目构建、系统启动、usertests 回归测试全过程</em>
-</div>
 
 ## 项目简介
 
@@ -46,6 +47,14 @@ make run
 ```
 
 按 `Ctrl+A` 然后 `X` 退出 QEMU。
+
+## 演示
+
+<div align="center">
+  <img src="./img/serein_demo.gif" alt="Serein Demo" width="600">
+  <br>
+  <em>演示：项目构建、系统启动、usertests 回归测试全过程</em>
+</div>
 
 ## 运行测试
 
