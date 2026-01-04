@@ -10,6 +10,8 @@ Stride 调度用确定性算法替代随机抽奖：每个进程维护一个 pas
 
 ## 实现方案
 
+![stride原理图](../img/stride原理图%20.png)
+
 ### 数据结构
 
 在 `struct proc` 中添加三个字段：

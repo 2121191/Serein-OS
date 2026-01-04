@@ -118,6 +118,8 @@ char addr[128];  // Enough for sockaddr_un (110 bytes)
 
 ### Socket 数据传输模型
 
+![数据传输模型](../img/数据传输模型.png)
+
 采用类似 Pipe 的共享缓冲区模型：
 
 ```

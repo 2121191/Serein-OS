@@ -155,6 +155,8 @@ struct proc {
 
 #### 缓冲区分桶（V2.3）
 
+![分桶架构图](../img/分桶架构图.png)
+
 ```c
 #define NBUCKET 13
 
