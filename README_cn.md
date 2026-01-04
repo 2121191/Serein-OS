@@ -1,9 +1,4 @@
----
-> **参赛信息**  
-> **院校**: 合肥工业大学  
-> **队伍**: 宇宙警备队  
-> **仓库地址**: https://github.com/2121191/Serein-OS
----
+**参赛信息**：合肥工业大学 | 队伍：宇宙警备队 | [GitHub 仓库](https://github.com/2121191/Serein-OS)
 
 # Serein OS
 
