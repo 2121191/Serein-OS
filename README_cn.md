@@ -16,12 +16,6 @@
   -(((---(((--------  
 ```
 
-<div align="center">
-  <img src="./img/serein_demo.gif" alt="Serein Demo" width="600">
-  <br>
-  <em>演示：项目构建、系统启动、usertests 回归测试全过程</em>
-</div>
-
 ## 项目简介
 
 Serein 是基于华中科技大学 HUST-OS/xv6-k210 深度开发的增强版操作系统内核。我们将原版内核移植到 **QEMU v6.2+** 版本，并适配了标准 **OpenSBI** 启动流程。在保留原版全部功能的基础上，新增了约 10,000 行内核代码，实现了 **75 个系统调用**，涵盖多项现代操作系统特性。
@@ -46,6 +40,14 @@ make run
 ```
 
 按 `Ctrl+A` 然后 `X` 退出 QEMU。
+
+## 演示
+
+<div align="center">
+  <img src="./img/serein_demo.gif" alt="Serein Demo" width="600">
+  <br>
+  <em>演示：项目构建、系统启动、usertests 回归测试全过程</em>
+</div>
 
 ## 运行测试
 

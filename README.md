@@ -16,12 +16,6 @@ An enhanced RISC-V operating system kernel based on HUST xv6-k210
   -(((---(((--------  
 ```
 
-<div align="center">
-  <img src="./img/serein_demo.gif" alt="Serein Demo" width="600">
-  <br>
-  <em>Demo: Project build, system boot, and usertests regression test</em>
-</div>
-
 ## Overview
 
 Serein is an enhanced operating system kernel based on HUST-OS/xv6-k210. We ported the original kernel to **QEMU v6.2+** with standard **OpenSBI** boot support. While preserving all original features, we added approximately 10,000 lines of kernel code implementing **75 system calls** covering modern OS features.
@@ -46,6 +40,14 @@ make run
 ```
 
 Press `Ctrl+A` then `X` to exit QEMU.
+
+## Demo
+
+<div align="center">
+  <img src="./img/serein_demo.gif" alt="Serein Demo" width="600">
+  <br>
+  <em>Demo: Project build, system boot, and usertests regression test</em>
+</div>
 
 ## Running Tests
 
