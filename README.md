@@ -1,3 +1,9 @@
+---
+> **Competition Entry**  
+> **School**: Hefei University of Technology (合肥工业大学)  
+> **Team**: 宇宙警备队
+---
+
 # Serein OS
 
 An enhanced RISC-V operating system kernel based on HUST xv6-k210  
