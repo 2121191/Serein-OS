@@ -1,6 +1,6 @@
-**Competition Entry**: Hefei University of Technology (合肥工业大学) | Team: 宇宙警备队 | [GitHub Repository](https://github.com/2121191/Serein-OS)
-
 # Serein OS
+
+**Competition Entry**: Hefei University of Technology (合肥工业大学) | Team: 宇宙警备队 | [GitHub Repository](https://github.com/2121191/Serein-OS)
 
 An enhanced RISC-V operating system kernel based on HUST xv6-k210  
 [English](./README.md) | [中文](./README_cn.md)

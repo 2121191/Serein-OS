@@ -1,6 +1,7 @@
-**参赛信息**：合肥工业大学 | 队伍：宇宙警备队 | [GitHub 仓库](https://github.com/2121191/Serein-OS)
-
 # Serein OS
+
+**参赛信息**：合肥工业大学 | 队伍：宇宙警备队 | [GitHub 仓库地址](https://github.com/2121191/Serein-OS)
+
 
 基于华科 xv6-k210 深度开发的增强版 RISC-V 操作系统内核  
 [English](./README.md) | [中文](./README_cn.md)
